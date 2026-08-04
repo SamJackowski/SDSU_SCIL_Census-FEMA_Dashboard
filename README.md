@@ -29,7 +29,7 @@ https://samjackowski.github.io/SDSU_SCIL_Census-FEMA_Dashboard/
 
 ## Data Pipeline
 
-The dataset used by this dashboard was generated using the Census Data AI Assistant project.
+The dataset used by this dashboard was generated using the same downloader as my Census Data AI Assistant project.
 
 The data preparation notebook is available [here](https://github.com/SamJackowski/SDSU_SCIL_CensusData_AI_Assistant-/blob/main/CensusData_Downloader_App_PATCHED.ipynb)
 
