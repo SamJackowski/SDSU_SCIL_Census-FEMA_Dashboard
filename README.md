@@ -2,9 +2,10 @@
 
 An interactive web dashboard for exploring county-level demographic, socioeconomic, and FEMA National Risk Index data across the United States.  
   
-Created by the San Diego State University Climate Informatics Lab
-August 2026 
-Version 1.0.0-alpha
+Created by the San Diego State University Climate Informatics Lab  
+August 2026  
+Version 1.0.0-alpha  
+  
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
