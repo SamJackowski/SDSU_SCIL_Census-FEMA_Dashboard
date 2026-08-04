@@ -4,6 +4,11 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
+## Running the Dashboard
+
+The dashboard can be viewed at the link below:  
+https://samjackowski.github.io/SDSU_SCIL_Census-FEMA_Dashboard/
+
 ## Features
 
 - Interactive county choropleth maps
@@ -41,9 +46,24 @@ The dashboard combines American Community Survey (ACS) estimates with FEMA hazar
     ├── acs_county_year_fema_flood_risk.parquet
     └── us_counties_geojson.json
 ```
+## Preview  
+### Default View (Map):  
+  
+<img width="1265" height="667" alt="image" src="https://github.com/user-attachments/assets/092a6041-7a28-433e-97eb-6a52bd0faefb" />
 
-## Running the Dashboard
+### State Filter (Map):
+  
+<img width="1267" height="656" alt="image" src="https://github.com/user-attachments/assets/54c0988b-0676-413c-a512-286c8d778d55" />
 
-The dashboard can be viewed at the link below:  
-https://samjackowski.github.io/SDSU_SCIL_Census-FEMA_Dashboard/
+### Time Series:
+  
+<img width="1263" height="570" alt="image" src="https://github.com/user-attachments/assets/b91d3f40-9b3b-411c-a05f-9cf068a41642" />
+
+### Statistics:
+  
+<img width="1007" height="444" alt="image" src="https://github.com/user-attachments/assets/31898fac-fead-4782-a45c-3d67af38119a" />
+
+
+
+
 
