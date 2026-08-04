@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ACS County Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">ACS County Dashboard</div>
+        <h1>County Explorer</h1>
+        <p>Filter Census and FEMA county data.</p>
+
+        <button
+        id="themeToggle"
+        class="theme-toggle secondary"
+        type="button"
+        aria-pressed="false"
+      >
+        <span id="themeToggleText">Dark mode</span>
+      </button>
+    </div>
+
+      <form id="filters" class="filter-form">
+        <label>Variable<select id="variableSelect"></select></label>
+        <div class="year-animation-field">
+  <span class="field-label">Map year</span>
+
+  <div class="year-animation-controls">
+    <button
+      id="yearPlayButton"
+      class="year-play-button secondary"
+      type="button"
+      aria-label="Play year animation"
+    >
+      ▶ Play
+    </button>
+
+    <strong id="yearDisplay" class="year-display">—</strong>
+  </div>
+
+      <input
+        id="yearSlider"
+        class="year-slider"
+        type="range"
+        min="0"
+        max="0"
+        step="1"
+        value="0"
+        aria-label="Map year"
+      >
+
+      <div class="year-slider-labels">
+        <span id="yearStartLabel">—</span>
+        <span id="yearEndLabel">—</span>
+      </div>
+
+      <span id="yearAnimationHelp" class="field-help">
+        Drag the slider or press Play to move through available years.
+      </span>
+    </div>
+
+        <div class="state-filter-field">
+          <span class="field-label">States</span>
+          <div id="statePicker" class="state-picker">
+            <button id="statePickerButton" class="state-picker-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span id="statePickerText">All states</span>
+              <span class="state-picker-arrow" aria-hidden="true">▾</span>
+            </button>
+            <div id="stateMenu" class="state-menu hidden" role="listbox" aria-multiselectable="true">
+              <div class="state-menu-header">
+                <strong>Select states</strong>
+                <button id="clearStatesButton" type="button" class="text-button">Clear all</button>
+              </div>
+              <div id="stateOptions" class="state-options"></div>
+            </div>
+          </div>
+          <select id="stateSelect" multiple hidden aria-hidden="true"></select>
+          <div id="stateChips" class="state-chips" aria-live="polite"></div>
+          <span class="field-help">Click states to add them. Click a selected state below to remove it. No selections means the entire United States.</span>
+        </div>
+
+      <div class="county-filter-field">
+        <span class="field-label">County</span>
+
+        <div id="countyPicker" class="county-picker">
+          <button
+            id="countyPickerButton"
+            class="county-picker-button"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+          >
+            <span id="countyPickerText">All counties</span>
+            <span class="county-picker-arrow" aria-hidden="true">▾</span>
+          </button>
+
+          <div
+            id="countyMenu"
+            class="county-menu hidden"
+            role="listbox"
+          >
+            <div class="county-menu-header">
+              <input
+                id="countySearch"
+                class="county-search"
+                type="search"
+                placeholder="Search counties..."
+                autocomplete="off"
+              >
+            </div>
+
+            <div id="countyOptions" class="county-options"></div>
+          </div>
+        </div>
+
+        <select
+          id="countySelect"
+          hidden
+          aria-hidden="true"
+        ></select>
+
+        <span class="field-help">
+          Search for a county or leave this as All counties.
+        </span>
+      </div>
+        <label>Color palette<select id="colorScaleSelect">
+        <option>Viridis</option>
+        <option>Plasma</option>
+        <option>Cividis</option>
+        <option>RdBu</option>
+        <option>Blues</option>
+        <option>Reds</option>
+        <option>YlOrRd</option>
+        <option>Jet</option>
+        </select></label>
+
+        <label>Color range<select id="scaleModeSelect">
+          <option value="robust">Robust (5th–95th percentile)</option>
+          <option value="full">Full data range</option>
+        </select></label>
+        <span class="field-help">Robust range keeps extreme counties from flattening color differences. Outliers still appear and retain their true values in hover text.</span>
+
+        <button type="submit">Apply filters</button>
+        <button type="button" id="resetButton" class="secondary">Reset</button>
+      </form>
+      <div id="status" class="status">Loading data…</div>
+    </aside>
+
+    <main class="dashboard-container">
+      <section class="header-card">
+        <div class="eyebrow">ACS County Dashboard</div>
+        <h2 id="dashboardTitle">County Dashboard</h2>
+        <div id="dashboardMeta" class="meta"></div>
+      </section>
+
+      <nav id="dashboardTabs" class="dashboard-tabs" role="tablist" aria-label="Dashboard sections">
+        <button type="button" class="dashboard-tab active" data-tab="map" role="tab" aria-selected="true">Map</button>
+        <button type="button" class="dashboard-tab" data-tab="trend" role="tab" aria-selected="false">Time Series</button>
+        <button type="button" class="dashboard-tab" data-tab="stats" role="tab" aria-selected="false">Statistics</button>
+      </nav>
+
+      <section id="mapSection" class="section-card">
+        <h2>Map</h2>
+        <div id="mapChart" class="chart map-chart"></div>
+      </section>
+
+      <section id="trendSection" class="section-card hidden">
+        <h2>Time Series</h2>
+        <div class="subtle">Selected states are shown as separate lines when ten or fewer states are selected.</div>
+        <div id="trendChart" class="chart"></div>
+      </section>
+
+      <section id="variableMetadata" class="metadata-card hidden">
+      <h3 id="metadataTitle"></h3>
+      <p id="metadataDefinition"></p>
+
+      <div class="metadata-grid">
+        <div>
+          <strong>Unit</strong>
+          <div id="metadataUnit"></div>
+        </div>
+
+        <div>
+          <strong>Interpretation</strong>
+          <div id="metadataInterpretation"></div>
+        </div>
+
+        <div>
+          <strong>Source</strong>
+          <div id="metadataSource"></div>
+        </div>
+      </div>
+    </section>
+
+      <section id="statsSection" class="section-card hidden">
+        <h2>Statistics</h2>
+        <div class="subtle">Summary values and county rankings for the selected map year.</div>
+        <div id="summaryCards" class="summary-grid"></div>
+        <div class="table-grid">
+          <div><h3>Top 10 Counties</h3><div id="topTable"></div></div>
+          <div><h3>Bottom 10 Counties</h3><div id="bottomTable"></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
