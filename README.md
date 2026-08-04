@@ -35,6 +35,10 @@ https://samjackowski.github.io/SDSU_SCIL_Census-FEMA_Dashboard/
 - Plotly.js
 - Hyparquet
 
+## Help
+
+Detailed information about each variable used in the Dashboard can be found in [Variable Dictionary](VARIABLE_DICTIONARY.md)
+
 ## Repository Structure
 
 ```
