@@ -18,8 +18,6 @@ const labels = {
   poverty_rate: "Poverty Rate",
   gini_index: "Gini Index",
   less_than_high_school_pct: "Less Than High School (%)",
-  high_school_grad_pct: "High School Graduate (%)",
-  bachelors_or_higher_pct: "Bachelor's Degree or Higher (%)",
   median_home_value: "Median Home Value",
   median_gross_rent: "Median Gross Rent",
   median_year_built: "Median Year Built",
@@ -728,12 +726,20 @@ function isFemaVariable(variable = state.variable) {
 }
 
 function yearsForVariable(variable) {
-  return [...new Set(
-    rows
-      .filter((row) => validNumber(row[variable]))
-      .map((row) => Number(row.year))
-      .filter(Number.isFinite),
-  )].sort((a, b) => a - b);
+  const years = [
+    ...new Set(
+      rows
+        .filter((row) => validNumber(row[variable]))
+        .map((row) => Number(row.year))
+        .filter(Number.isFinite),
+    ),
+  ].sort((a, b) => a - b);
+
+  if (isFemaVariable(variable) && years.length) {
+    return [years.at(-1)];
+  }
+
+  return years;
 }
 
 function currentYearIndex() {
@@ -1240,11 +1246,13 @@ function renderMap(data) {
         text: axisTitle(state.variable),
         side: "right",
         font: {
+          size: 16,
           color: dark ? "#e5e7eb" : "#111827",
         },
       },
 
       tickfont: {
+        size: 15,
         color: dark ? "#d1d5db" : "#374151",
       },
 
@@ -1257,8 +1265,13 @@ function renderMap(data) {
 
       exponentformat: "SI",
       separatethousands: true,
-      thickness: 18,
+
+      thickness: 50,
       len: 0.75,
+
+      x: 0.91,
+      xanchor: "left",
+      xpad: 4,
 
       outlinecolor: dark ? "#4b5563" : "#d1d5db",
     },
