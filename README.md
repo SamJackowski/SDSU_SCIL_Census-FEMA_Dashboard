@@ -9,6 +9,8 @@ Version 1.0.0-beta
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
+<img width="1265" height="667" alt="image" src="https://github.com/user-attachments/assets/092a6041-7a28-433e-97eb-6a52bd0faefb" />  
+
 ## Running the Dashboard
 
 The dashboard can be viewed at the link below:  
@@ -61,10 +63,7 @@ Detailed information about each variable used in the Dashboard can be found in [
     ├── acs_county_year_fema_flood_risk.parquet
     └── us_counties_geojson.json
 ```
-## Preview  
-### Default View (Map):  
-  
-<img width="1265" height="667" alt="image" src="https://github.com/user-attachments/assets/092a6041-7a28-433e-97eb-6a52bd0faefb" />
+## More Previews
 
 ### State Filter (Map):
   
