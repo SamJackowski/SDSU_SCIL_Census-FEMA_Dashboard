@@ -1,4 +1,3 @@
-<<<<<<< ours
 # Variable Dictionary
 
 This document describes the variables available in the **SDSU SCIL Census–FEMA Dashboard**.
