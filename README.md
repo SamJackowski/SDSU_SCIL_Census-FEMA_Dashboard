@@ -9,8 +9,8 @@ Version 1.0.0-beta
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
-<img width="1265" height="667" alt="image" src="https://github.com/user-attachments/assets/092a6041-7a28-433e-97eb-6a52bd0faefb" />  
-
+<img width="1253" height="658" alt="image" src="https://github.com/user-attachments/assets/5f921d4f-1e9a-492c-bf2d-ef0623f90de3" />
+ 
 ## Running the Dashboard
 
 The dashboard can be viewed at the link below:  
@@ -67,7 +67,7 @@ Detailed information about each variable used in the Dashboard can be found in [
 
 ### State Filter (Map):
   
-<img width="1267" height="656" alt="image" src="https://github.com/user-attachments/assets/54c0988b-0676-413c-a512-286c8d778d55" />
+<img width="1241" height="647" alt="image" src="https://github.com/user-attachments/assets/ad14608a-8a85-4e5a-a425-8446fd43bd8a" />
 
 ### Time Series:
   
