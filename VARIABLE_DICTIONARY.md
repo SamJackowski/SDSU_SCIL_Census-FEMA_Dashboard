@@ -837,5 +837,4 @@ Measures heat wave hazard risk and estimated annual frequency.
 - FEMA variables are derived from the **FEMA National Risk Index (NRI)**.
 - Expected annual loss variables are estimates of long-term average annual economic loss.
 - Risk scores are relative measures and should generally be interpreted by comparing counties rather than as absolute values.
->>>>>>> theirs
 - Annual frequency variables represent modeled average hazard occurrence and differ by hazard type (events per year, days per year, or annual probability).
