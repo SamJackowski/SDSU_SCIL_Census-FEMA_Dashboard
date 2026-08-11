@@ -279,6 +279,25 @@ const titleCase = (value) =>
 
 const variableLabel = (variable) => labels[variable] || titleCase(variable);
 
+function isMobile() {
+  if (typeof window.matchMedia === "function") {
+    const narrowPortrait = window.matchMedia("(max-width: 800px)").matches;
+    const shortLandscape = window.matchMedia(
+      "(max-width: 1000px) and (max-height: 500px)",
+    ).matches;
+
+    return narrowPortrait || shortLandscape;
+  }
+
+  const widths = [
+    window.innerWidth,
+    document.documentElement.clientWidth,
+    window.visualViewport?.width,
+    window.screen?.width,
+  ].filter((value) => Number.isFinite(value) && value > 0);
+
+  return Math.min(...widths) <= 800;
+}
 function defaultMetadata(variable) {
   const label = variableLabel(variable);
 
@@ -1170,7 +1189,21 @@ function initializeTheme() {
   });
 }
 
+let lastMapWasMobile = null;
+
 function renderMap(data) {
+  const mobile = isMobile();
+
+  // Plotly.react() doesn't reliably clear the old colorbar's DOM when its
+  // orientation changes (vertical <-> horizontal) — it can leave a stale
+  // copy behind. Force a full purge/rebuild whenever we cross the
+  // mobile/desktop boundary so there's never a leftover bar on screen.
+  if (lastMapWasMobile !== null && lastMapWasMobile !== mobile) {
+    Plotly.purge(els.mapChart);
+  }
+
+  lastMapWasMobile = mobile;
+
   const values = data.map((row) => row.value);
   const [cmin, cmax] = mapColorRange();
 
@@ -1241,47 +1274,61 @@ function renderMap(data) {
       `${variableLabel(state.variable)}: %{customdata[3]}` +
       "<extra></extra>",
 
-    colorbar: {
-      title: {
-        text: axisTitle(state.variable),
-        side: "right",
-        font: {
-          size: 16,
-          color: dark ? "#e5e7eb" : "#111827",
-        },
-      },
-
-      tickfont: {
-        size: 15,
-        color: dark ? "#d1d5db" : "#374151",
-      },
-
-      tickformat: colorbarTickFormat(state.variable),
-
-      ticksuffix:
-        valueKind(state.variable) === "percent"
-          ? "%"
-          : "",
-
-      exponentformat: "SI",
-      separatethousands: true,
-
-      thickness: 50,
-      len: 0.75,
-
-      x: 0.91,
-      xanchor: "left",
-      xpad: 4,
-
-      outlinecolor: dark ? "#4b5563" : "#d1d5db",
+colorbar: {
+  title: {
+    text: mobile ? "" : axisTitle(state.variable),
+    side: "right",
+    font: {
+      size: mobile ? 11 : 16,
+      color: dark ? "#e5e7eb" : "#111827",
     },
-  };
+  },
 
-  Plotly.react(
-    els.mapChart,
-    [trace],
-    {
-      ...plotTheme(),
+  tickfont: {
+    size: mobile ? 10 : 15,
+    color: dark ? "#d1d5db" : "#374151",
+  },
+
+  tickformat: colorbarTickFormat(state.variable),
+
+  ticksuffix:
+    valueKind(state.variable) === "percent"
+      ? "%"
+      : "",
+
+  exponentformat: "SI",
+  separatethousands: true,
+
+  ...(mobile
+    ? {
+        // Horizontal bar pinned above the map — frees up full width
+        // for the map itself instead of eating into it on the side.
+        orientation: "h",
+        thickness: 10,
+        len: 0.92,
+        x: 0.5,
+        xanchor: "center",
+        y: 1,
+        yanchor: "bottom",
+        ypad: 4,
+      }
+    : {
+        thickness: 50,
+        len: 0.75,
+        x: 0.91,
+        xanchor: "left",
+        xpad: 4,
+      }),
+
+  outlinecolor: dark ? "#4b5563" : "#d1d5db",
+},
+};
+
+Plotly.react(
+  els.mapChart,
+  [trace],
+  {
+    ...plotTheme(),
 
       title: {
         text: `${variableLabel(state.variable)} by County`,
@@ -1322,14 +1369,14 @@ function renderMap(data) {
           : "#ffffff",
       },
 
-      margin: {
-        l: 10,
-        r: 10,
-        t: 60,
-        b: 10,
-      },
+    margin: {
+      l: mobile ? 0 : 10,
+      r: mobile ? 0 : 10,
+      t: mobile ? 95 : 60,
+      b: 10,
+    },
 
-      height: 650,
+      height: mobile ? 450 : 650,
 
       hoverlabel: {
         bgcolor: dark
@@ -1355,6 +1402,7 @@ function renderMap(data) {
         state.colorScale,
         state.scaleMode,
         dark ? "dark" : "light",
+        mobile ? "mobile" : "desktop",
       ].join("|"),
     },
     {
@@ -1447,7 +1495,7 @@ function renderTrend() {
         text: `${variableLabel(state.variable)} Over Time`,
         x: 0.01,
         font: {
-          size: 28,
+          size: isMobile() ? 18 : 28,
         },
       },
 
@@ -1463,12 +1511,12 @@ function renderTrend() {
       title: {
         text: "Year",
         font: {
-          size: 20,
+          size: isMobile() ? 14 : 20,
         },
       },
 
       tickfont: {
-        size: 16,
+        size: isMobile() ? 11 : 16,
       },
 
       dtick: 1,
@@ -1481,13 +1529,13 @@ function renderTrend() {
       title: {
         text: axisTitle(state.variable),
         font: {
-          size: 20,
-        },
+          size: isMobile() ? 14 : 20,
+        } ,
         standoff: 28,
       },
 
       tickfont: {
-        size: 16,
+        size: isMobile() ? 11 : 16,
       },
 
       automargin: true,
@@ -1498,14 +1546,15 @@ function renderTrend() {
     },
         hovermode: "x unified",
 
-        margin: {
-          l: 65,
-          r: 20,
-          t: 60,
-          b: 90,
-        },
+    margin: {
+      l: isMobile() ? 50 : 65,
+      r: 10,
+      t: isMobile() ? 45 : 60,
+      b: isMobile() ? 70 : 90,
+    },
 
-        height: 460,
+    height: isMobile() ? 380 : 460,
+
       },
       {
         responsive: true,
@@ -1939,6 +1988,33 @@ els.resetButton.addEventListener("click", () => {
 els.themeToggle.addEventListener("click", () => {
   setTheme(isDarkMode() ? "light" : "dark");
 });
+
+let resizeTimer = null;
+let lastRenderWasMobile = isMobile();
+
+function handleViewportResize() {
+  clearTimeout(resizeTimer);
+
+  resizeTimer = setTimeout(() => {
+    if (!rows.length || !state.variable) return;
+
+    // Only force a full re-render (recomputes thickness/margins/height)
+    // when we've actually crossed the mobile/desktop breakpoint, or when
+    // the map is the visible tab, so we don't over-render on every pixel
+    // of a drag-resize.
+    const nowMobile = isMobile();
+
+    if (nowMobile !== lastRenderWasMobile || state.activeTab === "map") {
+      lastRenderWasMobile = nowMobile;
+      render();
+    } else {
+      lastRenderWasMobile = nowMobile;
+    }
+  }, 150);
+}
+
+window.addEventListener("resize", handleViewportResize);
+window.addEventListener("orientationchange", handleViewportResize);
 
 initializeTheme();
 init();
