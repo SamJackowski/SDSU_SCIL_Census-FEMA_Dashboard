@@ -624,3 +624,185 @@ button.county-option:hover {
 :root[data-theme="dark"] button.county-option:hover {
   background: #374151;
 }
+
+/* =========================
+   Mobile improvements
+   ========================= */
+
+@media (max-width: 600px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Sidebar / filters */
+  .sidebar {
+    padding: 16px;
+  }
+
+  .brand {
+    margin-bottom: 18px;
+  }
+
+  .brand h1 {
+    font-size: 22px;
+  }
+
+  .brand p {
+    font-size: 13px;
+  }
+
+  .filter-form {
+    gap: 12px;
+  }
+
+  select,
+  button,
+  .state-picker-button,
+  .county-picker-button {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* Main dashboard */
+  .dashboard-container {
+    padding: 12px;
+  }
+
+  .header-card {
+    padding: 16px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+  }
+
+  .header-card h2 {
+    font-size: 23px;
+    line-height: 1.2;
+  }
+
+  .meta {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .section-card {
+    padding: 10px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .section-card h2 {
+    font-size: 20px;
+  }
+
+  /* Tabs */
+  .dashboard-tabs {
+    gap: 3px;
+    padding: 4px;
+    margin-bottom: 12px;
+  }
+
+  .dashboard-tab {
+    padding: 9px 4px;
+    font-size: 13px;
+  }
+
+  /* Charts */
+  .chart {
+    width: 100%;
+    min-height: 340px;
+  }
+
+  .map-chart {
+    min-height: 450px;
+  }
+
+  /* Summary statistics */
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 12px 0 16px;
+  }
+
+  .summary-card {
+    padding: 11px;
+  }
+
+  .summary-label {
+    font-size: 10px;
+  }
+
+  .summary-value {
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Tables can scroll instead of breaking page width */
+  .table-grid > div {
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .dash-table {
+    font-size: 12px;
+    min-width: 430px;
+  }
+
+  .dash-table th,
+  .dash-table td {
+    padding: 7px;
+  }
+
+  /* Dropdowns */
+  .state-menu,
+  .county-menu {
+    max-width: calc(100vw - 32px);
+  }
+
+  .state-options,
+  .county-options {
+    max-height: 220px;
+  }
+
+  /* Year control */
+  .year-play-button {
+    min-width: 80px;
+  }
+
+  .year-display {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .dashboard-container {
+    padding: 8px;
+  }
+
+  .sidebar {
+    padding: 14px;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-tab {
+    font-size: 12px;
+  }
+}
+
+/* Short landscape phones (e.g. a phone rotated sideways): can be wider
+   than 800px but too short for the desktop-height plot, so give the
+   chart the same compact sizing used on narrow portrait phones. This
+   mirrors the shortLandscape check in isMobile() in app.js. */
+@media (max-width: 1000px) and (max-height: 500px) {
+  .chart {
+    width: 100%;
+    min-height: 340px;
+  }
+
+  .map-chart {
+    min-height: 450px;
+  }
+}
