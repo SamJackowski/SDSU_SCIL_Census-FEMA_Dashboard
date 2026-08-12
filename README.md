@@ -4,8 +4,9 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
   
 Created by the San Diego State University Climate Informatics Lab  
 August 2026  
-Version 1.0.1-beta
-  
+Version 1.0.2-beta  
+
+[See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
