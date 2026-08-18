@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ACS County Dashboard</title>
+  <title>ACS &amp; FEMA Geographic Dashboard</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
@@ -11,9 +11,9 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="eyebrow">ACS County Dashboard</div>
-        <h1>County Explorer</h1>
-        <p>Filter Census and FEMA county data.</p>
+        <div class="eyebrow">ACS &amp; FEMA Dashboard</div>
+        <h1>Geographic Explorer</h1>
+        <p>Explore Census and FEMA data by geography.</p>
 
         <button
         id="themeToggle"
@@ -26,6 +26,14 @@
     </div>
 
       <form id="filters" class="filter-form">
+        <label>
+          Geography
+          <select id="geographySelect">
+            <option value="county" selected>County</option>
+            <option value="state">State</option>
+          </select>
+        </label>
+
         <label>Variable<select id="variableSelect"></select></label>
         <div class="year-animation-field">
   <span class="field-label">Map year</span>
@@ -153,8 +161,8 @@
 
     <main class="dashboard-container">
       <section class="header-card">
-        <div class="eyebrow">ACS County Dashboard</div>
-        <h2 id="dashboardTitle">County Dashboard</h2>
+        <div class="eyebrow">ACS &amp; FEMA Dashboard</div>
+        <h2 id="dashboardTitle">Geographic Dashboard</h2>
         <div id="dashboardMeta" class="meta"></div>
       </section>
 
@@ -199,11 +207,11 @@
 
       <section id="statsSection" class="section-card hidden">
         <h2>Statistics</h2>
-        <div class="subtle">Summary values and county rankings for the selected map year.</div>
+        <div id="statsSubtitle" class="subtle">Summary values and county rankings for the selected map year.</div>
         <div id="summaryCards" class="summary-grid"></div>
         <div class="table-grid">
-          <div><h3>Top 10 Counties</h3><div id="topTable"></div></div>
-          <div><h3>Bottom 10 Counties</h3><div id="bottomTable"></div></div>
+          <div><h3 id="topTableTitle">Top 10 Counties</h3><div id="topTable"></div></div>
+          <div><h3 id="bottomTableTitle">Bottom 10 Counties</h3><div id="bottomTable"></div></div>
         </div>
       </section>
     </main>

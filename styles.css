@@ -806,3 +806,8 @@ button.county-option:hover {
     min-height: 450px;
   }
 }
+
+/* Geography selector */
+#geographySelect {
+  font-weight: 600;
+}

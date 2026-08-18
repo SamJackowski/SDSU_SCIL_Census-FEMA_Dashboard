@@ -1,5 +1,22 @@
-const DATA_URL = "data/acs_county_year_fema_flood_risk.parquet";
-const GEOJSON_URL = "data/us_counties_geojson.json";
+const GEOGRAPHY_CONFIG = {
+  county: {
+    label: "County",
+    plural: "Counties",
+    dataUrl: "data/acs_county_year_fema_flood_risk.parquet",
+    geojsonUrl: "data/us_counties_geojson.json",
+    featureIdKey: "id",
+    geoidLength: 5,
+  },
+  state: {
+    label: "State",
+    plural: "States",
+    dataUrl: "data/acs_state_year_fema_flood_risk.parquet",
+    geojsonUrl: "data/us_states_geojson.json",
+    featureIdKey: "properties.GEOID",
+    geoidLength: 2,
+  },
+};
+
 const HYPARQUET_URL = "https://cdn.jsdelivr.net/npm/hyparquet@latest/+esm";
 
 const labels = {
@@ -27,39 +44,51 @@ const labels = {
   no_vehicle_pct: "Households Without a Vehicle (%)",
   fema_risk_score: "FEMA Overall Risk Score",
   fema_expected_annual_loss: "FEMA Expected Annual Loss",
+  fema_eal_score: "FEMA Expected Annual Loss Score",
   fema_social_vulnerability_score: "FEMA Social Vulnerability",
   fema_resilience_score: "FEMA Community Resilience",
   fema_flood_max_risk_score: "Combined Flood Risk Score",
   fema_flood_expected_annual_loss: "Combined Flood Expected Annual Loss",
+  fema_flood_max_eal_score: "Combined Flood EAL Score",
   fema_coastal_flood_risk_score: "Coastal Flood Risk Score",
   fema_coastal_flood_expected_annual_loss: "Coastal Flood Expected Annual Loss",
+  fema_coastal_flood_eal_score: "Coastal Flood EAL Score",
   fema_inland_flood_risk_score: "Inland Flood Risk Score",
   fema_inland_flood_expected_annual_loss: "Inland Flood Expected Annual Loss",
+  fema_inland_flood_eal_score: "Inland Flood EAL Score",
   fema_wildfire_risk_score: "Wildfire Risk Score",
   fema_wildfire_expected_annual_loss: "Wildfire Expected Annual Loss",
+  fema_wildfire_eal_score: "Wildfire EAL Score",
   fema_wildfire_total_exposure: "Wildfire Total Exposure",
   fema_wildfire_annual_frequency: "Wildfire Annual Frequency",
   fema_wildfire_risk_value: "Wildfire Risk Value",
   fema_hurricane_risk_score: "Hurricane Risk Score",
   fema_hurricane_expected_annual_loss: "Hurricane Expected Annual Loss",
+  fema_hurricane_eal_score: "Hurricane EAL Score",
   fema_hurricane_annual_frequency: "Hurricane Annual Frequency",
   fema_earthquake_risk_score: "Earthquake Risk Score",
   fema_earthquake_expected_annual_loss: "Earthquake Expected Annual Loss",
+  fema_earthquake_eal_score: "Earthquake EAL Score",
   fema_earthquake_annual_frequency: "Earthquake Annual Frequency",
   fema_tornado_risk_score: "Tornado Risk Score",
   fema_tornado_expected_annual_loss: "Tornado Expected Annual Loss",
+  fema_tornado_eal_score: "Tornado EAL Score",
   fema_tornado_annual_frequency: "Tornado Annual Frequency",
   fema_hail_risk_score: "Hail Risk Score",
   fema_hail_expected_annual_loss: "Hail Expected Annual Loss",
+  fema_hail_eal_score: "Hail EAL Score",
   fema_hail_annual_frequency: "Hail Annual Frequency",
   fema_strong_wind_risk_score: "Strong Wind Risk Score",
   fema_strong_wind_expected_annual_loss: "Strong Wind Expected Annual Loss",
+  fema_strong_wind_eal_score: "Strong Wind EAL Score",
   fema_strong_wind_annual_frequency: "Strong Wind Annual Frequency",
   fema_drought_risk_score: "Drought Risk Score",
   fema_drought_expected_annual_loss: "Drought Expected Annual Loss",
+  fema_drought_eal_score: "Drought EAL Score",
   fema_drought_annual_frequency: "Drought Annual Frequency",
   fema_heat_wave_risk_score: "Heat Wave Risk Score",
   fema_heat_wave_expected_annual_loss: "Heat Wave Expected Annual Loss",
+  fema_heat_wave_eal_score: "Heat Wave EAL Score",
   fema_heat_wave_annual_frequency: "Heat Wave Annual Frequency",
 };
 
@@ -205,6 +234,7 @@ const REGION_PRESETS = {
 
 const els = Object.fromEntries(
   [
+    "geographySelect",
     "variableSelect",
     "stateSelect",
     "statePicker",
@@ -230,6 +260,9 @@ const els = Object.fromEntries(
     "summaryCards",
     "topTable",
     "bottomTable",
+    "topTableTitle",
+    "bottomTableTitle",
+    "statsSubtitle",
     "themeToggle",
     "themeToggleIcon",
     "themeToggleText",
@@ -259,6 +292,7 @@ let rows = [];
 let geojson = null;
 let variables = [];
 let state = {
+  geography: "county",
   variable: null,
   year: null,
   selectedStates: [],
@@ -278,6 +312,18 @@ const titleCase = (value) =>
     .replace(/\b\w/g, (character) => character.toUpperCase());
 
 const variableLabel = (variable) => labels[variable] || titleCase(variable);
+
+function geographyConfig() {
+  return GEOGRAPHY_CONFIG[state.geography];
+}
+
+function geographyLabel() {
+  return geographyConfig().label;
+}
+
+function geographyPlural() {
+  return geographyConfig().plural;
+}
 
 function isMobile() {
   if (typeof window.matchMedia === "function") {
@@ -370,7 +416,7 @@ function defaultMetadata(variable) {
       `Estimated land area exposed to ${hazard.toLowerCase()}.`;
     meta.unit = "Area";
     meta.interpretation =
-      "This measure is strongly influenced by county size and should be used cautiously when comparing counties.";
+      `This measure is strongly influenced by ${geographyLabel().toLowerCase()} size and should be used cautiously when comparing ${geographyPlural().toLowerCase()}.`;
   } else if (/_risk_value$/.test(variable)) {
     meta.definition = `${label} estimated by FEMA.`;
     meta.unit = "Risk value";
@@ -660,11 +706,26 @@ function formatValue(value, variable) {
 function normalizeRow(row) {
   const name = String(row.NAME ?? "");
   const nameParts = name.split(",").map((part) => part.trim());
+  const config = geographyConfig();
+  const normalizedGeoid = String(toPlainValue(row.GEOID) ?? "").padStart(
+    config.geoidLength,
+    "0",
+  );
+
+  if (state.geography === "state") {
+    return {
+      ...row,
+      year: toNumber(row.year),
+      GEOID: normalizedGeoid,
+      state_name: row.state_name || row.NAME || "Unknown state",
+      county_name: null,
+    };
+  }
 
   return {
     ...row,
     year: toNumber(row.year),
-    GEOID: String(toPlainValue(row.GEOID) ?? "").padStart(5, "0"),
+    GEOID: normalizedGeoid,
     county_name: row.county_name || nameParts[0] || "Unknown county",
     state_name: row.state_name || nameParts.at(-1) || "Unknown state",
   };
@@ -695,7 +756,8 @@ function filtered({ includeYear = true, includeCounty = true } = {}) {
       (row) =>
         (!includeYear || Number(row.year) === Number(state.year)) &&
         rowMatchesStates(row) &&
-        (!includeCounty ||
+        (state.geography !== "county" ||
+          !includeCounty ||
           state.countyKey === "All counties" ||
           row.GEOID === state.countyKey) &&
         validNumber(row[state.variable]),
@@ -984,7 +1046,35 @@ function setSelectedStates(nextStates) {
   syncCountyOptions();
 }
 
+function syncGeographyControls() {
+  const countyField = document.querySelector(".county-filter-field");
+  const isCounty = state.geography === "county";
+
+  countyField?.classList.toggle("hidden", !isCounty);
+
+  if (!isCounty) {
+    state.countyKey = "All counties";
+    els.countyMenu.classList.add("hidden");
+    els.countyPickerButton.setAttribute("aria-expanded", "false");
+  }
+
+  els.topTableTitle.textContent = `Top 10 ${geographyPlural()}`;
+  els.bottomTableTitle.textContent = `Bottom 10 ${geographyPlural()}`;
+  els.statsSubtitle.textContent =
+    `Summary values and ${geographyLabel().toLowerCase()} rankings for the selected map year.`;
+}
+
 function syncCountyOptions() {
+  if (state.geography !== "county") {
+    state.countyKey = "All counties";
+    els.countySelect.innerHTML =
+      `<option value="All counties">All counties</option>`;
+    els.countySelect.value = "All counties";
+    els.countyPickerText.textContent = "All counties";
+    els.countyOptions.innerHTML = "";
+    return;
+  }
+
   const countyRows = rows
     .filter(rowMatchesStates)
     .filter((row) => row.GEOID && row.county_name);
@@ -1236,7 +1326,7 @@ function renderMap(data) {
 
   const shouldFitBounds =
     (state.selectedStates.length > 0 ||
-      state.countyKey !== "All counties") &&
+      (state.geography === "county" && state.countyKey !== "All counties")) &&
     !includesInsetState;
 
   const dark = isDarkMode();
@@ -1246,7 +1336,7 @@ function renderMap(data) {
     geojson,
     locations: data.map((row) => row.GEOID),
     z: values,
-    featureidkey: "id",
+    featureidkey: geographyConfig().featureIdKey,
 
     colorscale,
     autocolorscale: false,
@@ -1262,16 +1352,17 @@ function renderMap(data) {
     },
 
     customdata: data.map((row) => [
-      row.county_name,
-      row.state_name,
+      state.geography === "state"
+        ? row.state_name
+        : `${row.county_name}, ${row.state_name}`,
       row.year,
       formatValue(row.value, state.variable),
     ]),
 
     hovertemplate:
-      "<b>%{customdata[0]}, %{customdata[1]}</b><br>" +
-      "Year: %{customdata[2]}<br>" +
-      `${variableLabel(state.variable)}: %{customdata[3]}` +
+      "<b>%{customdata[0]}</b><br>" +
+      "Year: %{customdata[1]}<br>" +
+      `${variableLabel(state.variable)}: %{customdata[2]}` +
       "<extra></extra>",
 
 colorbar: {
@@ -1296,31 +1387,18 @@ colorbar: {
       ? "%"
       : "",
 
-  exponentformat: "SI",
-  separatethousands: true,
+  // Mobile = horizontal color bar below map
+  orientation: mobile ? "h" : "v",
 
-  ...(mobile
-    ? {
-        // Horizontal bar pinned above the map — frees up full width
-        // for the map itself instead of eating into it on the side.
-        orientation: "h",
-        thickness: 10,
-        len: 0.92,
-        x: 0.5,
-        xanchor: "center",
-        y: 1,
-        yanchor: "bottom",
-        ypad: 4,
-      }
-    : {
-        thickness: 50,
-        len: 0.75,
-        x: 0.91,
-        xanchor: "left",
-        xpad: 4,
-      }),
+  x: mobile ? 0.5 : 1.02,
+  xanchor: mobile ? "center" : "left",
 
-  outlinecolor: dark ? "#4b5563" : "#d1d5db",
+  // Move the mobile colorbar underneath the map
+  y: mobile ? -0.12 : 0.5,
+  yanchor: mobile ? "top" : "middle",
+
+  len: mobile ? 0.82 : 0.75,
+  thickness: mobile ? 12 : 70,
 },
 };
 
@@ -1329,15 +1407,6 @@ Plotly.react(
   [trace],
   {
     ...plotTheme(),
-
-      title: {
-        text: `${variableLabel(state.variable)} by County`,
-        x: 0.01,
-
-        font: {
-          color: dark ? "#f3f4f6" : "#111827",
-        },
-      },
 
       geo: {
         scope: "usa",
@@ -1369,12 +1438,12 @@ Plotly.react(
           : "#ffffff",
       },
 
-    margin: {
-      l: mobile ? 0 : 10,
-      r: mobile ? 0 : 10,
-      t: mobile ? 95 : 60,
-      b: 10,
-    },
+      margin: {
+        l: mobile ? 5 : 10,
+        r: mobile ? 5 : 80,
+        t: mobile ? 5 : 10,
+        b: mobile ? 70 : 20,
+      },
 
       height: mobile ? 450 : 650,
 
@@ -1395,6 +1464,7 @@ Plotly.react(
       },
 
       uirevision: [
+        state.geography,
         state.variable,
         state.year,
         state.selectedStates.join(","),
@@ -1417,7 +1487,7 @@ function renderTrend() {
   const selectedStates = selectedStateNames();
   const traces = [];
 
-  if (state.countyKey !== "All counties") {
+  if (state.geography === "county" && state.countyKey !== "All counties") {
     const byYear = new Map();
     data.forEach((row) => byYear.set(Number(row.year), row.value));
     const years = [...byYear.keys()].sort((a, b) => a - b);
@@ -1564,13 +1634,24 @@ function renderTrend() {
 }
 
 function tableHtml(data) {
+  if (state.geography === "state") {
+    return `<table class="dash-table"><thead><tr><th>State</th><th>Value</th></tr></thead><tbody>${data
+      .map(
+        (row) =>
+          `<tr><td>${escapeHtml(row.state_name)}</td><td>${formatValue(
+            row.value,
+            state.variable,
+          )}</td></tr>`,
+      )
+      .join("")}</tbody></table>`;
+  }
+
   return `<table class="dash-table"><thead><tr><th>County</th><th>State</th><th>Value</th></tr></thead><tbody>${data
     .map(
       (row) =>
-        `<tr><td>${row.county_name}</td><td>${row.state_name}</td><td>${formatValue(
-          row.value,
-          state.variable,
-        )}</td></tr>`,
+        `<tr><td>${escapeHtml(row.county_name)}</td><td>${escapeHtml(
+          row.state_name,
+        )}</td><td>${formatValue(row.value, state.variable)}</td></tr>`,
     )
     .join("")}</tbody></table>`;
 }
@@ -1578,7 +1659,7 @@ function tableHtml(data) {
 function renderStats(data) {
   const values = data.map((row) => row.value);
   const cards = [
-    ["Counties", values.length.toLocaleString()],
+    [geographyPlural(), values.length.toLocaleString()],
     ["Average", formatValue(mean(values), state.variable)],
     ["Median", formatValue(median(values), state.variable)],
     ["Minimum", formatValue(Math.min(...values), state.variable)],
@@ -1669,9 +1750,9 @@ function render() {
   const data = filtered();
   const selectedStates = selectedStateNames();
   const countyRow =
-    state.countyKey === "All counties"
-      ? null
-      : rows.find((row) => row.GEOID === state.countyKey);
+    state.geography === "county" && state.countyKey !== "All counties"
+      ? rows.find((row) => row.GEOID === state.countyKey)
+      : null;
   const area = countyRow
     ? `${countyRow.county_name}, ${countyRow.state_name}`
     : selectedStates
@@ -1684,6 +1765,7 @@ function render() {
   els.dashboardMeta.innerHTML =
     `<b>Variable:</b> ${variableLabel(state.variable)} &nbsp; | &nbsp; ` +
     `<b>Year:</b> ${state.year} &nbsp; | &nbsp; ` +
+    `<b>Geography:</b> ${geographyLabel()} &nbsp; | &nbsp; ` +
     `<b>Area:</b> ${area} &nbsp; | &nbsp; ` +
     `<b>Rows:</b> ${data.length.toLocaleString()}`;
 
@@ -1699,7 +1781,8 @@ function render() {
     return;
   }
 
-  els.status.textContent = `Showing ${data.length.toLocaleString()} county records.`;
+  els.status.textContent =
+    `Showing ${data.length.toLocaleString()} ${geographyLabel().toLowerCase()} records.`;
   if (state.activeTab === "map") renderMap(data);
   if (state.activeTab === "trend") renderTrend();
   if (state.activeTab === "stats") renderStats(data);
@@ -1710,7 +1793,10 @@ function readForm() {
 
   state.variable = els.variableSelect.value;
   state.selectedStates = getSelectedValues(els.stateSelect);
-  state.countyKey = els.countySelect.value;
+  state.countyKey =
+    state.geography === "county"
+      ? els.countySelect.value
+      : "All counties";
   state.colorScale = els.colorScaleSelect.value;
   state.scaleMode = els.scaleModeSelect.value;
 
@@ -1725,13 +1811,14 @@ function readForm() {
   }
 }
 
-async function loadParquet() {
-  els.status.textContent = "Downloading Parquet data…";
+async function loadParquet(dataUrl) {
+  els.status.textContent =
+    `Downloading ${geographyLabel().toLowerCase()} Parquet data…`;
 
-  const response = await fetch(DATA_URL);
+  const response = await fetch(dataUrl);
   if (!response.ok) {
     throw new Error(
-      `Could not load ${DATA_URL}. Put the Parquet file inside the dashboard data folder.`,
+      `Could not load ${dataUrl}. Put the Parquet file inside the dashboard data folder.`,
     );
   }
 
@@ -1742,83 +1829,87 @@ async function loadParquet() {
   return parquetReadObjects({ file: parquetBuffer });
 }
 
-async function init() {
-  try {
-    const [parquetRows, geoResponse] = await Promise.all([
-      loadParquet(),
-      fetch(GEOJSON_URL),
-    ]);
+async function loadGeography({ preserveVariable = true } = {}) {
+  stopYearAnimation();
 
-    if (!geoResponse.ok) {
-      throw new Error(
-        `Could not load ${GEOJSON_URL}. Put the GeoJSON file inside the dashboard data folder.`,
-      );
-    }
+  const config = geographyConfig();
+  const previousVariable = state.variable;
 
-    geojson = await geoResponse.json();
-    rows = parquetRows.map(normalizeRow);
+  els.status.textContent = `Loading ${config.label.toLowerCase()} data…`;
 
-    if (!rows.length) {
-      throw new Error("The Parquet file loaded, but it contained no rows.");
-    }
+  const [parquetRows, geoResponse] = await Promise.all([
+    loadParquet(config.dataUrl),
+    fetch(config.geojsonUrl),
+  ]);
 
-    variables = Object.keys(labels)
-      .filter((column) =>
-        Object.prototype.hasOwnProperty.call(rows[0], column),
-      )
-      .filter((column) =>
-        rows.some((row) => validNumber(row[column])),
-      )
-      .sort((a, b) =>
-        variableLabel(a).localeCompare(variableLabel(b)),
-      );
+  if (!geoResponse.ok) {
+    throw new Error(
+      `Could not load ${config.geojsonUrl}. Put the GeoJSON file inside the dashboard data folder.`,
+    );
+  }
 
-    const states = [
-      ...new Set(
-        rows
-          .map((row) => row.state_name)
-          .filter(Boolean),
-      ),
-    ].sort();
+  geojson = await geoResponse.json();
+  rows = parquetRows.map(normalizeRow);
 
-    if (!variables.length) {
-      throw new Error(
-        "No numeric dashboard variables were found in the Parquet file.",
-      );
-    }
+  if (!rows.length) {
+    throw new Error(`${config.label} Parquet loaded but contained no rows.`);
+  }
 
+  variables = Object.keys(labels)
+    .filter((column) =>
+      Object.prototype.hasOwnProperty.call(rows[0], column),
+    )
+    .filter((column) => rows.some((row) => validNumber(row[column])))
+    .sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)));
+
+  if (!variables.length) {
+    throw new Error(
+      `No numeric dashboard variables were found for ${config.label}.`,
+    );
+  }
+
+  if (preserveVariable && variables.includes(previousVariable)) {
+    state.variable = previousVariable;
+  } else {
     state.variable = variables.includes("total_population")
       ? "total_population"
       : variables[0];
+  }
 
-    state.selectedStates = [];
-    state.countyKey = "All counties";
+  state.selectedStates = [];
+  state.countyKey = "All counties";
+  state.activeTab = "map";
+
+  const states = [
+    ...new Set(rows.map((row) => row.state_name).filter(Boolean)),
+  ].sort();
+
+  setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+  setMultiSelectOptions(els.stateSelect, states, state.selectedStates);
+
+  syncYearAnimationControls({ preserveYear: false });
+  syncGeographyControls();
+  syncCountyOptions();
+
+  Plotly.purge(els.mapChart);
+  Plotly.purge(els.trendChart);
+  lastMapWasMobile = null;
+
+  render();
+}
+
+async function init() {
+  try {
+    state.geography = "county";
+    els.geographySelect.value = state.geography;
     state.colorScale = "Viridis";
     state.scaleMode = "robust";
     state.activeTab = "map";
 
-    setGroupedVariableOptions(
-      els.variableSelect,
-      variables,
-      state.variable,
-    );
-
-    setMultiSelectOptions(
-      els.stateSelect,
-      states,
-      state.selectedStates,
-    );
-
-    syncYearAnimationControls({
-      preserveYear: false,
-    });
-
-    syncCountyOptions();
-    render();
+    await loadGeography({ preserveVariable: false });
   } catch (error) {
     els.status.innerHTML =
       `<div class="error">${escapeHtml(error.message)}</div>`;
-
     console.error(error);
   }
 }
@@ -1863,13 +1954,30 @@ els.countyOptions.addEventListener("click", (event) => {
 });
 
 
+els.geographySelect.addEventListener("change", async () => {
+  try {
+    stopYearAnimation();
+    state.geography = els.geographySelect.value;
+    state.selectedStates = [];
+    state.countyKey = "All counties";
+
+    await loadGeography({ preserveVariable: true });
+  } catch (error) {
+    els.status.innerHTML =
+      `<div class="error">${escapeHtml(error.message)}</div>`;
+    console.error(error);
+  }
+});
+
 els.filters.addEventListener("submit", (event) => {
   event.preventDefault();
 
   stopYearAnimation();
   readForm();
   syncCountyOptions();
-  state.countyKey = els.countySelect.value;
+  if (state.geography === "county") {
+    state.countyKey = els.countySelect.value;
+  }
   render();
 });
 
@@ -1978,9 +2086,11 @@ els.resetButton.addEventListener("click", () => {
 
   renderStatePicker();
 
+  els.geographySelect.value = state.geography;
   els.colorScaleSelect.value = state.colorScale;
   els.scaleModeSelect.value = state.scaleMode;
 
+  syncGeographyControls();
   syncCountyOptions();
   render();
 });
