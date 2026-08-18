@@ -4,7 +4,7 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
   
 Created by the San Diego State University Climate Informatics Lab  
 August 2026  
-Version 1.0.2-beta  
+Version 1.1.0
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
