@@ -63,6 +63,8 @@ Detailed information about each variable used in the Dashboard can be found in [
 └── data/
     ├── acs_county_year_fema_flood_risk.parquet
     └── us_counties_geojson.json
+    └── us_states_geojson.json
+    └── acs_states_year_fema_flood_risk.parquet
 ```
 ## More Previews
 
