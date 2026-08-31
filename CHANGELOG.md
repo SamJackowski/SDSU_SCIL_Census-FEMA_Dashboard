@@ -11,5 +11,11 @@
 - Added improved mobile support for phone and tablet
 
 ## Version 1.1.0 (8/18/2026) 
-- Added state level data for Census and FEMA data with plans for tract level data in the future 
+- Added state level data for Census and FEMA data with plans for tract level data in the future
+
+## Version 1.1.1 (8/30/2026) 
+- Added Census Tract level data for Census and FEMA data for 2020-2024
+- Plans to add features for more states selected at once and expanding to 2010-2019
+
+  
 
