@@ -807,7 +807,12 @@ button.county-option:hover {
   }
 }
 
-/* Geography selector */
-#geographySelect {
-  font-weight: 600;
+.filter-form label.hidden,
+.filter-form label[hidden] {
+  display: none !important;
+}
+
+.state-filter-field.hidden,
+.state-filter-field[hidden] {
+  display: none !important;
 }

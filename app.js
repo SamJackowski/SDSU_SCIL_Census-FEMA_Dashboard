@@ -15,6 +15,18 @@ const GEOGRAPHY_CONFIG = {
     featureIdKey: "properties.GEOID",
     geoidLength: 2,
   },
+  tract: {
+    label: "Census Tract",
+    plural: "Census Tracts",
+    dataUrl: (stateFips) => `data/by_state/acs_tract_year_fema_state_${stateFips}.parquet`,
+    geojsonUrl: (stateFips) => `data/by_state/us_tracts_2022_state_${stateFips}.geojson`,
+    featureIdKey: "properties.GEOID",
+    geoidLength: 11,
+  },
+};
+
+const TRACT_STATES = {
+  "01": "Alabama", "02": "Alaska", "04": "Arizona", "05": "Arkansas", "06": "California", "08": "Colorado", "09": "Connecticut", "10": "Delaware", "11": "District of Columbia", "12": "Florida", "13": "Georgia", "15": "Hawaii", "16": "Idaho", "17": "Illinois", "18": "Indiana", "19": "Iowa", "20": "Kansas", "21": "Kentucky", "22": "Louisiana", "23": "Maine", "24": "Maryland", "25": "Massachusetts", "26": "Michigan", "27": "Minnesota", "28": "Mississippi", "29": "Missouri", "30": "Montana", "31": "Nebraska", "32": "Nevada", "33": "New Hampshire", "34": "New Jersey", "35": "New Mexico", "36": "New York", "37": "North Carolina", "38": "North Dakota", "39": "Ohio", "40": "Oklahoma", "41": "Oregon", "42": "Pennsylvania", "44": "Rhode Island", "45": "South Carolina", "46": "South Dakota", "47": "Tennessee", "48": "Texas", "49": "Utah", "50": "Vermont", "51": "Virginia", "53": "Washington", "54": "West Virginia", "55": "Wisconsin", "56": "Wyoming", "72": "Puerto Rico",
 };
 
 const HYPARQUET_URL = "https://cdn.jsdelivr.net/npm/hyparquet@latest/+esm";
@@ -284,7 +296,8 @@ const els = Object.fromEntries(
     "countyMenu",
     "countySearch",
     "countyOptions",
-    "countySelect",
+  "countySelect",
+    "tractStateSelect",
   ].map((id) => [id, document.getElementById(id)]),
 );
 
@@ -297,6 +310,7 @@ let state = {
   year: null,
   selectedStates: [],
   countyKey: "All counties",
+  tractStateFips: "06",
   colorScale: "Viridis",
   scaleMode: "robust",
   activeTab: "map",
@@ -722,6 +736,17 @@ function normalizeRow(row) {
     };
   }
 
+  if (state.geography === "tract") {
+    return {
+      ...row,
+      year: toNumber(row.year),
+      GEOID: normalizedGeoid,
+      tract_name: row.tract_name || row.NAME || "Unknown tract",
+      county_name: row.fema_county || row.county_name || "Unknown county",
+      state_name: row.fema_state || row.state_name || "Unknown state",
+    };
+  }
+
   return {
     ...row,
     year: toNumber(row.year),
@@ -729,6 +754,12 @@ function normalizeRow(row) {
     county_name: row.county_name || nameParts[0] || "Unknown county",
     state_name: row.state_name || nameParts.at(-1) || "Unknown state",
   };
+}
+
+function countySelectionKey(row) {
+  return state.geography === "tract"
+    ? `${String(row.state).padStart(2, "0")}${String(row.county).padStart(3, "0")}`
+    : row.GEOID;
 }
 
 function setOptions(element, values, selected, formatter = variableLabel) {
@@ -756,10 +787,10 @@ function filtered({ includeYear = true, includeCounty = true } = {}) {
       (row) =>
         (!includeYear || Number(row.year) === Number(state.year)) &&
         rowMatchesStates(row) &&
-        (state.geography !== "county" ||
+        (state.geography === "state" ||
           !includeCounty ||
           state.countyKey === "All counties" ||
-          row.GEOID === state.countyKey) &&
+          countySelectionKey(row) === state.countyKey) &&
         validNumber(row[state.variable]),
     )
     .map((row) => ({ ...row, value: toNumber(row[state.variable]) }));
@@ -1048,11 +1079,27 @@ function setSelectedStates(nextStates) {
 
 function syncGeographyControls() {
   const countyField = document.querySelector(".county-filter-field");
-  const isCounty = state.geography === "county";
+  const stateField = document.querySelector(".state-filter-field");
+  const tractStateField = document.querySelector(".tract-state-field");
+  const isDetailGeography = state.geography !== "state";
 
-  countyField?.classList.toggle("hidden", !isCounty);
+  tractStateField.hidden = state.geography !== "tract";
+  stateField.hidden = state.geography === "tract";
 
-  if (!isCounty) {
+  countyField?.classList.toggle("hidden", !isDetailGeography);
+  stateField?.classList.toggle("hidden", state.geography === "tract");
+  tractStateField?.classList.toggle("hidden", state.geography !== "tract");
+
+  if (state.geography === "tract") {
+    setOptions(
+      els.tractStateSelect,
+      Object.keys(TRACT_STATES),
+      state.tractStateFips,
+      (fips) => TRACT_STATES[fips],
+    );
+  }
+
+  if (!isDetailGeography) {
     state.countyKey = "All counties";
     els.countyMenu.classList.add("hidden");
     els.countyPickerButton.setAttribute("aria-expanded", "false");
@@ -1065,7 +1112,7 @@ function syncGeographyControls() {
 }
 
 function syncCountyOptions() {
-  if (state.geography !== "county") {
+  if (state.geography === "state") {
     state.countyKey = "All counties";
     els.countySelect.innerHTML =
       `<option value="All counties">All counties</option>`;
@@ -1083,7 +1130,7 @@ function syncCountyOptions() {
 
   countyRows.forEach((row) => {
     countyMap.set(
-      row.GEOID,
+      countySelectionKey(row),
       `${row.county_name}, ${row.state_name}`,
     );
   });
@@ -1326,7 +1373,7 @@ function renderMap(data) {
 
   const shouldFitBounds =
     (state.selectedStates.length > 0 ||
-      (state.geography === "county" && state.countyKey !== "All counties")) &&
+      (state.geography !== "state" && state.countyKey !== "All counties")) &&
     !includesInsetState;
 
   const dark = isDarkMode();
@@ -1354,7 +1401,9 @@ function renderMap(data) {
     customdata: data.map((row) => [
       state.geography === "state"
         ? row.state_name
-        : `${row.county_name}, ${row.state_name}`,
+        : state.geography === "tract"
+          ? `${row.tract_name}, ${row.county_name}, ${row.state_name}`
+          : `${row.county_name}, ${row.state_name}`,
       row.year,
       formatValue(row.value, state.variable),
     ]),
@@ -1466,7 +1515,6 @@ Plotly.react(
       uirevision: [
         state.geography,
         state.variable,
-        state.year,
         state.selectedStates.join(","),
         state.countyKey,
         state.colorScale,
@@ -1646,6 +1694,15 @@ function tableHtml(data) {
       .join("")}</tbody></table>`;
   }
 
+  if (state.geography === "tract") {
+    return `<table class="dash-table"><thead><tr><th>Census Tract</th><th>County</th><th>State</th><th>Value</th></tr></thead><tbody>${data
+      .map(
+        (row) =>
+          `<tr><td>${escapeHtml(row.tract_name)}</td><td>${escapeHtml(row.county_name)}</td><td>${escapeHtml(row.state_name)}</td><td>${formatValue(row.value, state.variable)}</td></tr>`,
+      )
+      .join("")}</tbody></table>`;
+  }
+
   return `<table class="dash-table"><thead><tr><th>County</th><th>State</th><th>Value</th></tr></thead><tbody>${data
     .map(
       (row) =>
@@ -1794,7 +1851,7 @@ function readForm() {
   state.variable = els.variableSelect.value;
   state.selectedStates = getSelectedValues(els.stateSelect);
   state.countyKey =
-    state.geography === "county"
+    state.geography !== "state"
       ? els.countySelect.value
       : "All counties";
   state.colorScale = els.colorScaleSelect.value;
@@ -1837,14 +1894,21 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
   els.status.textContent = `Loading ${config.label.toLowerCase()} data…`;
 
+  const dataUrl = typeof config.dataUrl === "function"
+    ? config.dataUrl(state.tractStateFips)
+    : config.dataUrl;
+  const geojsonUrl = typeof config.geojsonUrl === "function"
+    ? config.geojsonUrl(state.tractStateFips)
+    : config.geojsonUrl;
+
   const [parquetRows, geoResponse] = await Promise.all([
-    loadParquet(config.dataUrl),
-    fetch(config.geojsonUrl),
+    loadParquet(dataUrl),
+    fetch(geojsonUrl),
   ]);
 
   if (!geoResponse.ok) {
     throw new Error(
-      `Could not load ${config.geojsonUrl}. Put the GeoJSON file inside the dashboard data folder.`,
+      `Could not load ${geojsonUrl}. Put the GeoJSON file inside the dashboard data folder.`,
     );
   }
 
@@ -1969,13 +2033,19 @@ els.geographySelect.addEventListener("change", async () => {
   }
 });
 
+els.tractStateSelect.addEventListener("change", async () => {
+  state.tractStateFips = els.tractStateSelect.value;
+  state.countyKey = "All counties";
+  await loadGeography({ preserveVariable: true });
+});
+
 els.filters.addEventListener("submit", (event) => {
   event.preventDefault();
 
   stopYearAnimation();
   readForm();
   syncCountyOptions();
-  if (state.geography === "county") {
+  if (state.geography !== "state") {
     state.countyKey = els.countySelect.value;
   }
   render();
