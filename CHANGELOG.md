@@ -20,5 +20,6 @@
 ## Version 1.1.2 (9/4/2026)
 - Heavily improved the Census Tract and County lag issue by switching libraries to MapLibre
 - Added city names that adapt to zoom level
-- Added improved filters for county and states 
+- Added improved filters for county and states
+- Mobile Version was harmed due to the mapping library switch and is currently being fixed in the next update
 
