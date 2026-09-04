@@ -4,13 +4,14 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
   
 Created by the San Diego State University Climate Informatics Lab  
 August 2026  
-Version 1.1.0
+Version 1.1.2
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
-<img width="1253" height="658" alt="image" src="https://github.com/user-attachments/assets/5f921d4f-1e9a-492c-bf2d-ef0623f90de3" />
+<img width="1257" height="585" alt="image" src="https://github.com/user-attachments/assets/f038030e-dadc-4160-8f8e-cf771bb3d697" />
+
  
 ## Running the Dashboard
 
@@ -70,15 +71,22 @@ Detailed information about each variable used in the Dashboard can be found in [
 
 ### State Filter (Map):
   
-<img width="1241" height="647" alt="image" src="https://github.com/user-attachments/assets/ad14608a-8a85-4e5a-a425-8446fd43bd8a" />
+<img width="1229" height="586" alt="image" src="https://github.com/user-attachments/assets/fadbcd59-3d6f-45e7-b65b-74fc85f1f38b" />
+
+### Tract Filter (Map):
+
+<img width="1189" height="581" alt="image" src="https://github.com/user-attachments/assets/4287d7bb-6c5f-4173-b37a-1ebf3ca3fd26" />
+
 
 ### Time Series:
   
-<img width="1263" height="570" alt="image" src="https://github.com/user-attachments/assets/b91d3f40-9b3b-411c-a05f-9cf068a41642" />
+<img width="938" height="602" alt="image" src="https://github.com/user-attachments/assets/271efa93-b667-4da1-a05e-bccb30165c9d" />
+
 
 ### Statistics:
   
-<img width="1007" height="444" alt="image" src="https://github.com/user-attachments/assets/31898fac-fead-4782-a45c-3d67af38119a" />
+<img width="1203" height="644" alt="image" src="https://github.com/user-attachments/assets/e26e6d85-1838-4b7a-95ba-fd7455650187" />
+
 
 
 
