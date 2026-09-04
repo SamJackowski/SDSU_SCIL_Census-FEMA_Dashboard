@@ -1,3 +1,14 @@
+import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+esm";
+import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@latest/+esm";
+
+const pmtilesProtocol = new Protocol();
+maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+
+const US_TRACTS_PMTILES_URL = new URL(
+  "data/tiles/us-tracts.pmtiles",
+  import.meta.url,
+).href;
+
 const GEOGRAPHY_CONFIG = {
   county: {
     label: "County",
@@ -296,11 +307,26 @@ const els = Object.fromEntries(
     "countyMenu",
     "countySearch",
     "countyOptions",
-  "countySelect",
+    "countySelect",
     "tractStateSelect",
+    "mapChart",
+    "tractMap",
+    "trendChart",
   ].map((id) => [id, document.getElementById(id)]),
 );
 
+let tractMap = null;
+let tractLegend = null;
+let tractHoverPopup = null;
+let tractCountyBoundaries = null;
+let countyLookup = null;
+let adminMapRows = new Map();
+let pendingAdminData = null;
+let lastAdminFitKey = null;
+let lastTractStateFitKey = null;
+const tractRowsByState = new Map();
+const tractLoadingStates = new Set();
+let tractPreloadPromise = null;
 let rows = [];
 let geojson = null;
 let variables = [];
@@ -1083,12 +1109,12 @@ function syncGeographyControls() {
   const tractStateField = document.querySelector(".tract-state-field");
   const isDetailGeography = state.geography !== "state";
 
-  tractStateField.hidden = state.geography !== "tract";
-  stateField.hidden = state.geography === "tract";
+  tractStateField.hidden = true;
+  stateField.hidden = false;
 
   countyField?.classList.toggle("hidden", !isDetailGeography);
-  stateField?.classList.toggle("hidden", state.geography === "tract");
-  tractStateField?.classList.toggle("hidden", state.geography !== "tract");
+  stateField?.classList.remove("hidden");
+  tractStateField?.classList.toggle("hidden", true);
 
   if (state.geography === "tract") {
     setOptions(
@@ -1112,6 +1138,30 @@ function syncGeographyControls() {
 }
 
 function syncCountyOptions() {
+  if (state.geography === "tract" && countyLookup) {
+    const counties = countyLookup
+      .filter((county) => {
+        if (!state.selectedStates.length) return true;
+        const geoid = String(county.geoid).padStart(5, "0");
+        return state.selectedStates.includes(TRACT_STATES[geoid.slice(0, 2)]);
+      })
+      .map((county) => {
+        const geoid = String(county.geoid).padStart(5, "0");
+        const stateName = TRACT_STATES[geoid.slice(0, 2)] || "Unknown state";
+        return [geoid, `${county.name}, ${stateName}`];
+      })
+      .sort((a, b) => a[1].localeCompare(b[1]));
+    els.countySelect.innerHTML = [
+      '<option value="All counties">All counties</option>',
+      ...counties.map(([geoid, name]) => `<option value="${escapeHtml(geoid)}">${escapeHtml(name)}</option>`),
+    ].join("");
+    els.countyOptions.innerHTML = [
+      '<button type="button" class="county-option selected" data-county-key="All counties">All counties</button>',
+      ...counties.map(([geoid, name]) => `<button type="button" class="county-option" data-county-key="${escapeHtml(geoid)}">${escapeHtml(name)}</button>`),
+    ].join("");
+    els.countyPickerText.textContent = "All counties";
+    return;
+  }
   if (state.geography === "state") {
     state.countyKey = "All counties";
     els.countySelect.innerHTML =
@@ -1331,6 +1381,14 @@ let lastMapWasMobile = null;
 function renderMap(data) {
   const mobile = isMobile();
 
+  // County and state maps now use the same MapLibre instance and basemap as
+  // Census tracts. The remaining Plotly code is retained below only as a
+  // fallback and is bypassed for every current geography option.
+  if (state.geography !== "tract") {
+    renderAdminMap(data);
+    return;
+  }
+
   // Plotly.react() doesn't reliably clear the old colorbar's DOM when its
   // orientation changes (vertical <-> horizontal) — it can leave a stale
   // copy behind. Force a full purge/rebuild whenever we cross the
@@ -1339,7 +1397,20 @@ function renderMap(data) {
     Plotly.purge(els.mapChart);
   }
 
+  els.mapChart.classList.remove("hidden");
+  els.tractMap.classList.add("hidden");
+
   lastMapWasMobile = mobile;
+
+
+    if (state.geography === "tract") {
+    // Hide Plotly map, show MapLibre map.
+    // Do not fetch a tract GeoJSON.
+    renderTractMap();
+    return;
+  }
+
+  // Existing Plotly county/state code remains unchanged.
 
   const values = data.map((row) => row.value);
   const [cmin, cmax] = mapColorRange();
@@ -1828,6 +1899,29 @@ function render() {
 
   renderVisibility();
 
+  if (state.geography === "tract") {
+    const loadedTractRows = [...tractRowsByState.values()].reduce(
+      (total, stateRows) =>
+        total + stateRows.filter(
+          (row) =>
+            Number(row.year) === Number(state.year) &&
+            rowMatchesStates(row) &&
+            validNumber(row[state.variable]),
+        ).length,
+      0,
+    );
+
+    els.dashboardMeta.innerHTML =
+      `<b>Variable:</b> ${variableLabel(state.variable)} &nbsp; | &nbsp; ` +
+      `<b>Year:</b> ${state.year} &nbsp; | &nbsp; ` +
+      `<b>Geography:</b> Census Tract &nbsp; | &nbsp; ` +
+      `<b>Area:</b> ${area} &nbsp; | &nbsp; ` +
+      `<b>Rows:</b> ${loadedTractRows.toLocaleString()}`;
+
+    if (state.activeTab === "map") renderMap(data);
+    return;
+  }
+
   if (!data.length) {
     els.status.innerHTML = '<div class="error">No data matches these filters.</div>';
     Plotly.purge(els.mapChart);
@@ -1891,6 +1985,27 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
   const config = geographyConfig();
   const previousVariable = state.variable;
+
+  // Census tracts are rendered from the nationwide PMTiles archive while
+  // attribute values are loaded from the state-level Parquet files.
+  if (state.geography === "tract") {
+    state.selectedStates = [];
+    state.countyKey = "All counties";
+    state.activeTab = "map";
+    await loadCountyLookup();
+    setMultiSelectOptions(
+      els.stateSelect,
+      Object.values(TRACT_STATES).sort((a, b) => a.localeCompare(b)),
+      state.selectedStates,
+    );
+    syncGeographyControls();
+    syncCountyOptions();
+    els.status.textContent = "Loading Census tract data by state…";
+    Plotly.purge(els.mapChart);
+    lastMapWasMobile = null;
+    render();
+    return;
+  }
 
   els.status.textContent = `Loading ${config.label.toLowerCase()} data…`;
 
@@ -2015,7 +2130,72 @@ els.countyOptions.addEventListener("click", (event) => {
     "aria-expanded",
     "false",
   );
+
+  if (state.geography === "tract" && state.countyKey !== "All counties") {
+    zoomToTractCounty(state.countyKey);
+  } else if (state.geography === "tract") {
+    tractMap?.getSource("selected-county")?.setData({
+      type: "FeatureCollection",
+      features: [],
+    });
+  }
 });
+
+function zoomToTractCounty(countyGeoid) {
+  if (!tractMap?.getSource("us-tracts")) return;
+
+  const lookupCounty = countyLookup?.find((county) => county.geoid === countyGeoid);
+  if (lookupCounty) {
+    const [west, south, east, north] = lookupCounty.bounds;
+    tractMap.fitBounds(
+      [[west, south], [east, north]],
+      { padding: 45, maxZoom: 11, duration: 700 },
+    );
+    highlightTractCounty(countyGeoid);
+    return;
+  }
+
+  const bounds = new maplibregl.LngLatBounds();
+  const extendCoordinates = (coordinates) => {
+    if (typeof coordinates[0] === "number") {
+      bounds.extend(coordinates);
+      return;
+    }
+    coordinates.forEach(extendCoordinates);
+  };
+
+  tractMap
+    .querySourceFeatures("us-tracts", { sourceLayer: "tracts" })
+    .filter((feature) => String(feature.id).padStart(11, "0").slice(0, 5) === countyGeoid)
+    .forEach((feature) => extendCoordinates(feature.geometry.coordinates));
+
+  if (!bounds.isEmpty()) {
+    tractMap.fitBounds(bounds, { padding: 45, maxZoom: 11, duration: 700 });
+  }
+
+  highlightTractCounty(countyGeoid);
+}
+
+async function loadCountyLookup() {
+  if (countyLookup) return countyLookup;
+  const response = await fetch("data/county_lookup.json");
+  if (!response.ok) throw new Error("Could not load the county lookup file.");
+  countyLookup = await response.json();
+  return countyLookup;
+}
+
+async function highlightTractCounty(countyGeoid) {
+  if (!tractMap?.getSource("selected-county")) return;
+  if (!tractCountyBoundaries) {
+    const response = await fetch("data/us_counties_geojson.json");
+    if (!response.ok) return;
+    tractCountyBoundaries = await response.json();
+  }
+  const features = tractCountyBoundaries.features.filter((feature) =>
+    String(feature.id || feature.properties?.GEOID || "").padStart(5, "0") === countyGeoid,
+  );
+  tractMap.getSource("selected-county").setData({ type: "FeatureCollection", features });
+}
 
 
 els.geographySelect.addEventListener("change", async () => {
@@ -2191,6 +2371,568 @@ function handleViewportResize() {
       lastRenderWasMobile = nowMobile;
     }
   }, 150);
+}
+
+function initTractMap() {
+  if (tractMap) return;
+
+  tractMap = new maplibregl.Map({
+    container: "tractMap",
+    style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    center: [-98.5, 39.8],
+    zoom: 3.5,
+  });
+
+  tractMap.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  tractMap.on("load", () => {
+    // Insert dashboard polygons below the CARTO symbol layers so city and
+    // place-name labels remain visible above every geography layer.
+    const firstLabelLayerId = tractMap
+      .getStyle()
+      .layers.find((layer) => layer.type === "symbol")?.id;
+
+    tractMap.addSource("us-tracts", {
+      type: "vector",
+      url: `pmtiles://${US_TRACTS_PMTILES_URL}`,
+    });
+
+    tractMap.addLayer({
+      id: "tract-fill",
+      type: "fill",
+      source: "us-tracts",
+      "source-layer": "tracts",
+      paint: {
+        "fill-color": "#94a3b8",
+        "fill-opacity": 0.82,
+      },
+    }, firstLabelLayerId);
+
+    tractMap.addSource("admin-areas", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+
+    tractMap.addLayer({
+      id: "admin-fill",
+      type: "fill",
+      source: "admin-areas",
+      layout: { visibility: "none" },
+      paint: {
+        "fill-color": "#94a3b8",
+        "fill-opacity": 0.82,
+      },
+    }, firstLabelLayerId);
+
+    tractMap.addLayer({
+      id: "admin-outline",
+      type: "line",
+      source: "admin-areas",
+      layout: { visibility: "none" },
+      paint: {
+        "line-color": "#cbd5e1",
+        "line-width": 0.65,
+      },
+    }, firstLabelLayerId);
+
+    addTractLegend();
+
+    tractMap.addSource("selected-county", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+    tractMap.addLayer({
+      id: "selected-county-outline",
+      type: "line",
+      source: "selected-county",
+      paint: { "line-color": "#f8fafc", "line-width": 3.5, "line-opacity": 0.95 },
+    }, firstLabelLayerId);
+
+    tractMap.on("mouseenter", "tract-fill", () => {
+      tractMap.getCanvas().style.cursor = "pointer";
+    });
+
+    tractMap.on("mouseleave", "tract-fill", () => {
+      tractMap.getCanvas().style.cursor = "";
+      tractHoverPopup?.remove();
+    });
+
+    tractMap.on("mouseenter", "admin-fill", () => {
+      tractMap.getCanvas().style.cursor = "pointer";
+    });
+
+    tractMap.on("mouseleave", "admin-fill", () => {
+      tractMap.getCanvas().style.cursor = "";
+      tractHoverPopup?.remove();
+    });
+
+    tractMap.on("mousemove", "admin-fill", (event) => {
+      const feature = event.features?.[0];
+      const row = feature ? adminMapRows.get(String(feature.id)) : null;
+      if (!row) return;
+
+      if (!tractHoverPopup) {
+        tractHoverPopup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 12,
+        });
+      }
+
+      const areaName = state.geography === "state"
+        ? row.state_name
+        : `${row.county_name}, ${row.state_name}`;
+
+      tractHoverPopup
+        .setLngLat(event.lngLat)
+        .setHTML(
+          `<strong>${escapeHtml(areaName)}</strong><br>` +
+          `<strong>Year:</strong> ${escapeHtml(row.year)}<br>` +
+          `<strong>${escapeHtml(variableLabel(state.variable))}:</strong> ` +
+          `${escapeHtml(formatValue(row.value, state.variable))}`,
+        )
+        .addTo(tractMap);
+
+      styleMapPopup();
+    });
+
+    tractMap.on("mousemove", "tract-fill", (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+
+      const geoid = String(feature.id).padStart(11, "0");
+      const { value } = tractMap.getFeatureState({
+        source: "us-tracts",
+        sourceLayer: "tracts",
+        id: feature.id,
+      });
+
+      if (!tractHoverPopup) {
+        tractHoverPopup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 12,
+        });
+      }
+
+      tractHoverPopup
+        .setLngLat(event.lngLat)
+        .setHTML(
+          `<strong>GEOID:</strong> ${escapeHtml(geoid)}<br>` +
+          `<strong>${escapeHtml(variableLabel(state.variable))}:</strong> ` +
+          `${Number.isFinite(value) ? escapeHtml(formatValue(value, state.variable)) : "No data loaded"}`,
+        )
+        .addTo(tractMap);
+
+      const popupContent = tractHoverPopup.getElement()?.querySelector(
+        ".maplibregl-popup-content",
+      );
+      if (popupContent) {
+        popupContent.style.background = "#0f172a";
+        popupContent.style.color = "#f8fafc";
+        popupContent.style.border = "1px solid #2563eb";
+        popupContent.style.borderRadius = "8px";
+        popupContent.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.45)";
+        popupContent.style.padding = "10px 12px";
+        popupContent.style.fontSize = "13px";
+      }
+    });
+
+    tractMap.addLayer({
+      id: "tract-outline",
+      type: "line",
+      source: "us-tracts",
+      "source-layer": "tracts",
+      paint: {
+        "line-color": "#334155",
+        "line-width": 0.4,
+      },
+    }, firstLabelLayerId);
+
+    tractMap.on("moveend", loadVisibleTractStateData);
+    tractMap.on("idle", loadVisibleTractStateData);
+
+    // Begin filling the cache immediately. Visible states are requested first,
+    // then the remaining state files are loaded in the background.
+    preloadAllTractStateData();
+
+    if (pendingAdminData && state.geography !== "tract") {
+      renderAdminMap(pendingAdminData);
+    }
+  });
+}
+
+function renderTractMap() {
+  pendingAdminData = null;
+  initTractMap();
+
+  els.mapChart.classList.add("hidden");
+  els.tractMap.classList.remove("hidden");
+
+  // MapLibre was hidden when initialized, so it needs one resize after showing.
+  requestAnimationFrame(() => {
+    tractMap.resize();
+    setMapLayerVisibility(true);
+    fitTractStateSelection();
+    loadVisibleTractStateData();
+    preloadAllTractStateData();
+    refreshTractMapValues();
+  });
+}
+
+function fitTractStateSelection() {
+  if (!tractMap || !countyLookup || state.countyKey !== "All counties") return;
+
+  const fitKey = state.selectedStates.join("|");
+  if (fitKey === lastTractStateFitKey) return;
+
+  if (!state.selectedStates.length) {
+    tractMap.jumpTo({ center: [-98.5, 39.8], zoom: 3.5 });
+    lastTractStateFitKey = fitKey;
+    return;
+  }
+
+  const selected = new Set(state.selectedStates);
+  const bounds = new maplibregl.LngLatBounds();
+
+  countyLookup.forEach((county) => {
+    const geoid = String(county.geoid).padStart(5, "0");
+    const stateName = TRACT_STATES[geoid.slice(0, 2)];
+    if (!selected.has(stateName) || !Array.isArray(county.bounds)) return;
+
+    const [west, south, east, north] = county.bounds;
+    bounds.extend([west, south]);
+    bounds.extend([east, north]);
+  });
+
+  if (!bounds.isEmpty()) {
+    tractMap.fitBounds(bounds, { padding: 45, maxZoom: 8, duration: 650 });
+  }
+  lastTractStateFitKey = fitKey;
+}
+
+function styleMapPopup() {
+  const popupContent = tractHoverPopup?.getElement()?.querySelector(
+    ".maplibregl-popup-content",
+  );
+  if (!popupContent) return;
+
+  popupContent.style.background = "#0f172a";
+  popupContent.style.color = "#f8fafc";
+  popupContent.style.border = "1px solid #2563eb";
+  popupContent.style.borderRadius = "8px";
+  popupContent.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.45)";
+  popupContent.style.padding = "10px 12px";
+  popupContent.style.fontSize = "13px";
+}
+
+function setMapLayerVisibility(showTracts) {
+  if (!tractMap?.getSource("us-tracts")) return;
+
+  ["tract-fill", "tract-outline"].forEach((layerId) => {
+    if (tractMap.getLayer(layerId)) {
+      tractMap.setLayoutProperty(layerId, "visibility", showTracts ? "visible" : "none");
+    }
+  });
+
+  ["admin-fill", "admin-outline"].forEach((layerId) => {
+    if (tractMap.getLayer(layerId)) {
+      tractMap.setLayoutProperty(layerId, "visibility", showTracts ? "none" : "visible");
+    }
+  });
+}
+
+function adminFeatureId(feature) {
+  const rawId = feature.properties?.GEOID ?? feature.id ?? "";
+  return String(rawId).padStart(state.geography === "state" ? 2 : 5, "0");
+}
+
+function extendMapBounds(coordinates, bounds) {
+  if (!Array.isArray(coordinates)) return;
+  if (typeof coordinates[0] === "number" && typeof coordinates[1] === "number") {
+    bounds.extend(coordinates);
+    return;
+  }
+  coordinates.forEach((coordinate) => extendMapBounds(coordinate, bounds));
+}
+
+function renderAdminMap(data) {
+  pendingAdminData = data;
+  initTractMap();
+
+  els.mapChart.classList.add("hidden");
+  els.tractMap.classList.remove("hidden");
+
+  requestAnimationFrame(() => tractMap.resize());
+
+  const source = tractMap?.getSource("admin-areas");
+  if (!source || !geojson) return;
+
+  setMapLayerVisibility(false);
+  tractMap.getSource("selected-county")?.setData({
+    type: "FeatureCollection",
+    features: [],
+  });
+
+  const mapGeojson = {
+    ...geojson,
+    features: geojson.features.map((feature) => ({
+      ...feature,
+      id: adminFeatureId(feature),
+    })),
+  };
+
+  source.setData(mapGeojson);
+  tractMap.removeFeatureState({ source: "admin-areas" });
+
+  adminMapRows = new Map(data.map((row) => [String(row.GEOID), row]));
+  data.forEach((row) => {
+    tractMap.setFeatureState(
+      { source: "admin-areas", id: String(row.GEOID) },
+      { value: row.value },
+    );
+  });
+
+  const values = data.map((row) => row.value).filter(Number.isFinite);
+  if (!values.length) return;
+
+  let [cmin, cmax] = mapColorRange();
+  if (cmin === cmax) cmax = cmin + 1;
+
+  const [start, low, middle, high, end] = tractColorRamp();
+  const midpoint = cmin + (cmax - cmin) / 2;
+
+  tractMap.setPaintProperty("admin-fill", "fill-color", [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["feature-state", "value"], -1],
+    -1, "#94a3b8",
+    cmin, start,
+    cmin + (cmax - cmin) * 0.25, low,
+    midpoint, middle,
+    cmin + (cmax - cmin) * 0.75, high,
+    cmax, end,
+  ]);
+
+  addTractLegend();
+  updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
+
+  const fitKey = [
+    state.geography,
+    state.selectedStates.join(","),
+    state.countyKey,
+  ].join("|");
+
+  if (fitKey !== lastAdminFitKey) {
+    if (state.selectedStates.length || state.countyKey !== "All counties") {
+      const visibleIds = new Set(data.map((row) => String(row.GEOID)));
+      const bounds = new maplibregl.LngLatBounds();
+      mapGeojson.features
+        .filter((feature) => visibleIds.has(String(feature.id)))
+        .forEach((feature) => extendMapBounds(feature.geometry?.coordinates, bounds));
+
+      if (!bounds.isEmpty()) {
+        tractMap.fitBounds(bounds, { padding: 45, maxZoom: 9, duration: 650 });
+      }
+    } else {
+      tractMap.jumpTo({ center: [-98.5, 39.8], zoom: 3.5 });
+    }
+    lastAdminFitKey = fitKey;
+  }
+}
+
+function visibleTractStateFips() {
+  if (!tractMap?.getSource("us-tracts")) return [];
+
+  return [...new Set(
+    tractMap
+      .querySourceFeatures("us-tracts", { sourceLayer: "tracts" })
+      .map((feature) => String(feature.id).padStart(11, "0").slice(0, 2))
+      .filter(Boolean),
+  )];
+}
+
+async function loadVisibleTractStateData() {
+  if (state.geography !== "tract") return;
+
+  visibleTractStateFips().forEach((stateFips) => {
+    loadTractStateData(stateFips);
+  });
+}
+
+function preloadAllTractStateData() {
+  if (state.geography !== "tract" || tractPreloadPromise) {
+    return tractPreloadPromise;
+  }
+
+  const visibleStates = visibleTractStateFips();
+  const stateQueue = [
+    ...visibleStates,
+    ...Object.keys(TRACT_STATES).filter(
+      (stateFips) => !visibleStates.includes(stateFips),
+    ),
+  ];
+
+  // A few parallel downloads keep the preload moving without flooding the
+  // browser with a request for every state at once.
+  const worker = async () => {
+    while (stateQueue.length && state.geography === "tract") {
+      const stateFips = stateQueue.shift();
+      await loadTractStateData(stateFips);
+    }
+  };
+
+  tractPreloadPromise = Promise.all([worker(), worker(), worker()]).finally(() => {
+    tractPreloadPromise = null;
+  });
+
+  return tractPreloadPromise;
+}
+
+async function loadTractStateData(stateFips) {
+  if (tractRowsByState.has(stateFips) || tractLoadingStates.has(stateFips)) {
+    return;
+  }
+
+  tractLoadingStates.add(stateFips);
+
+  try {
+    els.status.textContent =
+      `Loading Census tract data by state… ${tractRowsByState.size} of ${Object.keys(TRACT_STATES).length} loaded.`;
+    const dataUrl = `data/by_state/acs_tract_year_fema_state_${stateFips}.parquet`;
+    const parquetRows = await loadParquet(dataUrl);
+    tractRowsByState.set(stateFips, parquetRows.map(normalizeRow));
+    refreshTractMapValues();
+    render();
+  } catch (error) {
+    console.error(`Could not load tract data for state ${stateFips}.`, error);
+  } finally {
+    tractLoadingStates.delete(stateFips);
+  }
+}
+
+function tractColorRamp() {
+  const ramps = {
+    Viridis: ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"],
+    Plasma: ["#0d0887", "#7e03a8", "#cc4778", "#f89540", "#f0f921"],
+    RdBu: ["#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac"],
+    Cividis: ["#00204c", "#424e6c", "#7a7c78", "#b7b96a", "#fee838"],
+    Blues: ["#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#172554"],
+    Reds: ["#fff1f2", "#fecdd3", "#fb7185", "#dc2626", "#7f1d1d"],
+    YlOrRd: ["#ffffcc", "#fed976", "#fd8d3c", "#e31a1c", "#800026"],
+    Jet: ["#00007f", "#007fff", "#7fff7f", "#ff7f00", "#7f0000"],
+  };
+
+  return ramps[state.colorScale] || ramps.Viridis;
+}
+
+function refreshTractMapValues() {
+  if (!tractMap?.getSource("us-tracts") || state.geography !== "tract") return;
+
+  const values = [];
+
+  // Feature state persists in MapLibre. Clear every tract we have previously
+  // loaded before applying the newly selected variable/year, otherwise a tract
+  // with no value can incorrectly keep a value from the previous variable.
+  tractRowsByState.forEach((stateRows) => {
+    const geoids = new Set(stateRows.map((row) => String(row.GEOID).padStart(11, "0")));
+    geoids.forEach((geoid) => {
+      tractMap.setFeatureState(
+        {
+          source: "us-tracts",
+          sourceLayer: "tracts",
+          id: Number(geoid),
+        },
+        { value: null },
+      );
+    });
+  });
+
+  tractRowsByState.forEach((stateRows) => {
+    const currentRows = stateRows.filter(
+      (row) =>
+        Number(row.year) === Number(state.year) &&
+        rowMatchesStates(row) &&
+        validNumber(row[state.variable]),
+    );
+
+    currentRows.forEach((row) => {
+      const value = toNumber(row[state.variable]);
+      const geoid = String(row.GEOID).padStart(11, "0");
+
+      tractMap.setFeatureState(
+        {
+          source: "us-tracts",
+          sourceLayer: "tracts",
+          id: Number(geoid),
+        },
+        { value },
+      );
+
+      values.push(value);
+    });
+  });
+
+  if (!values.length) return;
+
+  let [cmin, cmax] = colorRange(values, state.scaleMode);
+  if (cmin === cmax) cmax = cmin + 1;
+
+  const [start, low, middle, high, end] = tractColorRamp();
+  const midpoint = cmin + (cmax - cmin) / 2;
+
+  tractMap.setPaintProperty("tract-fill", "fill-color", [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["feature-state", "value"], -1],
+    -1, "#94a3b8",
+    cmin, start,
+    cmin + (cmax - cmin) * 0.25, low,
+    midpoint, middle,
+    cmin + (cmax - cmin) * 0.75, high,
+    cmax, end,
+  ]);
+
+  updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
+
+  els.status.textContent = `Loaded tract data for ${tractRowsByState.size} state${tractRowsByState.size === 1 ? "" : "s"}.`;
+}
+
+function addTractLegend() {
+  if (tractLegend) return;
+
+  tractLegend = document.createElement("div");
+  tractLegend.style.cssText = [
+    "min-width: 205px",
+    "padding: 11px 10px",
+    "border-radius: 6px",
+    "background: rgba(15, 23, 42, 0.78)",
+    "color: #e5e7eb",
+    "font: 12px/1.35 system-ui, sans-serif",
+    "box-shadow: 0 2px 10px rgba(0,0,0,.35)",
+  ].join(";");
+
+  tractMap.getContainer().appendChild(tractLegend);
+  tractLegend.style.position = "absolute";
+  tractLegend.style.right = "12px";
+  tractLegend.style.bottom = "50px";
+  tractLegend.style.zIndex = "2";
+}
+
+function updateTractLegend(minimum, midpoint, maximum, colors) {
+  if (!tractLegend) return;
+
+  tractLegend.innerHTML = `
+    <strong style="display:block;margin-bottom:9px;font-size:22px;">${escapeHtml(variableLabel(state.variable))}</strong>
+    <div style="display:flex;align-items:stretch;gap:10px;">
+      <div style="width:70px;height:390px;border:1px solid rgba(255,255,255,.55);border-radius:3px;background:linear-gradient(to top, ${colors.join(", ")});"></div>
+      <div style="height:390px;display:flex;flex-direction:column;justify-content:space-between;font-size:18px;font-weight:600;">        <span>${escapeHtml(formatValue(maximum, state.variable))}</span>
+        <span>${escapeHtml(formatValue((maximum + midpoint) / 2, state.variable))}</span>
+        <span>${escapeHtml(formatValue(midpoint, state.variable))}</span>
+        <span>${escapeHtml(formatValue((minimum + midpoint) / 2, state.variable))}</span>
+        <span>${escapeHtml(formatValue(minimum, state.variable))}</span>
+      </div>
+    </div>`;
 }
 
 window.addEventListener("resize", handleViewportResize);

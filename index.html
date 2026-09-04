@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ACS &amp; FEMA Geographic Dashboard</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@latest/dist/maplibre-gl.css">
   <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
 <body>
@@ -181,6 +182,7 @@
       <section id="mapSection" class="section-card">
         <h2>Map</h2>
         <div id="mapChart" class="chart map-chart"></div>
+        <div id="tractMap" class="chart map-chart hidden"></div>
       </section>
 
       <section id="trendSection" class="section-card hidden">
