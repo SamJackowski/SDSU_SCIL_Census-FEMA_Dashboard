@@ -2,7 +2,8 @@
 
 An interactive web dashboard for exploring county-level demographic, socioeconomic, and FEMA National Risk Index data across the United States.  
   
-Created by the San Diego State University Climate Informatics Lab  
+Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)
+Directed by Distinguished Professor Samuel Shen (SCIL Director)
 August 2026  
 Version 1.1.2
 
