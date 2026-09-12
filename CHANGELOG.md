@@ -23,3 +23,9 @@
 - Added improved filters for county and states
 - Mobile Version was harmed due to the mapping library switch and is currently being fixed in the next update
 
+## Version 1.1.3 (9/12/2026)
+- Fixed issue where statistics and time series tabs did not display census tract data properly
+- Fixed issue where certain states could not be hovered over on the map display
+- Added event selector mode to show specific events starting with just Hurricane Harvey and more to be added in the future
+
+- 
