@@ -88,6 +88,11 @@ Detailed information about each variable used in the Dashboard can be found in [
   
 <img width="1203" height="644" alt="image" src="https://github.com/user-attachments/assets/e26e6d85-1838-4b7a-95ba-fd7455650187" />
 
+### Specific Events:
+
+<img width="1242" height="676" alt="image" src="https://github.com/user-attachments/assets/9e3d3a76-e4ad-4401-a422-41a1dbc93e74" />
+
+
 
 
 
