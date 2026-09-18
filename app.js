@@ -1,8 +1,21 @@
 import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+esm";
 import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@latest/+esm";
+import centroid from "https://cdn.jsdelivr.net/npm/@turf/centroid@7.2.0/+esm";
+import booleanPointInPolygon from "https://cdn.jsdelivr.net/npm/@turf/boolean-point-in-polygon@7.2.0/+esm";
 
 const pmtilesProtocol = new Protocol();
 maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
+window.mapboxgl = maplibregl;
+const { default: MapboxDraw } = await import(
+  "https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-draw@1.5.0/+esm"
+);
+Object.assign(MapboxDraw.constants.classes, {
+  CANVAS: "maplibregl-canvas",
+  CONTROL_BASE: "maplibregl-ctrl",
+  CONTROL_PREFIX: "maplibregl-ctrl-",
+  CONTROL_GROUP: "maplibregl-ctrl-group",
+  ATTRIBUTION: "maplibregl-ctrl-attrib",
+});
 
 const US_TRACTS_PMTILES_URLS = {
   2010: new URL("data/tiles/us-tracts-2010.pmtiles", import.meta.url).href,
@@ -41,23 +54,66 @@ const TRACT_STATES = {
 };
 
 const HYPARQUET_URL = "https://cdn.jsdelivr.net/npm/hyparquet@latest/+esm";
-const HARVEY_DATA_URL = "data/harvey_nfip_by_tract.csv";
-const HARVEY_VARIABLES = [
-  "harvey_nfip_claim_count",
-  "harvey_nfip_total_claim_payments",
-  "harvey_nfip_average_payment_per_claim",
-  "harvey_nfip_building_payments",
-  "harvey_nfip_contents_payments",
-  "harvey_nfip_icc_payments",
+const EVENT_VARIABLE_SUFFIXES = [
+  "claim_count",
+  "claims_per_1000_residents",
+  "total_claim_payments",
+  "claim_payments_per_capita",
+  "average_payment_per_claim",
+  "building_payments",
+  "contents_payments",
+  "icc_payments",
 ];
+const EVENT_CONFIGS = {
+  harvey: { name: "Hurricane Harvey", year: 2017, states: ["Louisiana", "Texas"], boundaryVintage: "2010", kind: "nfip" },
+  ida: { name: "Hurricane Ida", year: 2021, states: ["Louisiana"], boundaryVintage: "2020", kind: "nfip" },
+  ian: { name: "Hurricane Ian", year: 2022, states: ["Florida"], boundaryVintage: "2020", kind: "nfip" },
+  sandy: { name: "Hurricane Sandy", year: 2012, states: ["New Jersey", "New York"], boundaryVintage: "2010", kind: "nfip" },
+  florence: { name: "Hurricane Florence", year: 2018, states: ["North Carolina", "South Carolina"], boundaryVintage: "2010", kind: "nfip" },
+  michael: { name: "Hurricane Michael", year: 2018, states: ["Florida"], boundaryVintage: "2010", kind: "nfip" },
+  louisiana_floods_2016: { name: "2016 Louisiana Floods", year: 2016, states: ["Louisiana"], boundaryVintage: "2010", kind: "nfip" },
+  tennessee_flooding_2021: { name: "2021 Tennessee Flooding", year: 2021, states: ["Tennessee"], boundaryVintage: "2020", kind: "nfip" },
+  eastern_kentucky_flooding_2022: { name: "2022 Eastern Kentucky Flooding", year: 2022, states: ["Kentucky"], boundaryVintage: "2020", kind: "nfip" },
+  camp_fire: {
+    name: "Camp Fire",
+    year: 2018,
+    states: ["California"],
+    boundaryVintage: "2010",
+    kind: "wildfire",
+    dataUrl: "data/events/camp_fire_damage_by_tract.csv",
+    prefix: "camp_fire_",
+    variables: [
+      "camp_fire_structures_destroyed",
+      "camp_fire_destroyed_structures_per_1000_residents",
+      "camp_fire_structures_damaged_or_destroyed",
+      "camp_fire_damaged_or_destroyed_structures_per_1000_residents",
+      "camp_fire_residential_structures_destroyed",
+      "camp_fire_structures_inspected",
+      "camp_fire_destruction_rate_pct",
+    ],
+    initialVariable: "camp_fire_structures_destroyed",
+  },
+};
+Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
+  event.id = id;
+  if (event.kind === "nfip") {
+    event.dataUrl = `data/events/${id}_nfip_by_tract.csv`;
+    event.prefix = `${id}_nfip_`;
+    event.variables = EVENT_VARIABLE_SUFFIXES.map((suffix) => `${event.prefix}${suffix}`);
+    event.initialVariable = `${event.prefix}claim_count`;
+  }
+});
+
+function currentEventConfig() {
+  return EVENT_CONFIGS[state.dataMode] || null;
+}
+
+function eventConfigFromVariable(variable) {
+  const name = String(variable || "");
+  return Object.values(EVENT_CONFIGS).find((event) => name.startsWith(event.prefix)) || null;
+}
 
 const labels = {
-  harvey_nfip_claim_count: "Harvey NFIP Claim Count",
-  harvey_nfip_total_claim_payments: "Harvey Total Claim Payments",
-  harvey_nfip_average_payment_per_claim: "Harvey Average Payment per Claim",
-  harvey_nfip_building_payments: "Harvey Building Payments",
-  harvey_nfip_contents_payments: "Harvey Contents Payments",
-  harvey_nfip_icc_payments: "Harvey Compliance Payments",
   total_population: "Total Population",
   median_age: "Median Age",
   under_18_population: "Population Under 18",
@@ -129,6 +185,29 @@ const labels = {
   fema_heat_wave_eal_score: "Heat Wave EAL Score",
   fema_heat_wave_annual_frequency: "Heat Wave Annual Frequency",
 };
+
+Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
+  if (event.kind !== "nfip") return;
+  const prefix = event.prefix;
+  labels[`${prefix}claim_count`] = `${event.name} NFIP Claim Count`;
+  labels[`${prefix}claims_per_1000_residents`] = `${event.name} NFIP Claims per 1,000 Residents`;
+  labels[`${prefix}total_claim_payments`] = `${event.name} Total Claim Payments`;
+  labels[`${prefix}claim_payments_per_capita`] = `${event.name} NFIP Claim Payments per Capita`;
+  labels[`${prefix}average_payment_per_claim`] = `${event.name} Average Payment per Claim`;
+  labels[`${prefix}building_payments`] = `${event.name} Building Payments`;
+  labels[`${prefix}contents_payments`] = `${event.name} Contents Payments`;
+  labels[`${prefix}icc_payments`] = `${event.name} Compliance Payments`;
+});
+
+Object.assign(labels, {
+  camp_fire_structures_destroyed: "Camp Fire Structures Destroyed",
+  camp_fire_destroyed_structures_per_1000_residents: "Camp Fire Destroyed Structures per 1,000 Residents",
+  camp_fire_structures_damaged_or_destroyed: "Camp Fire Structures Damaged or Destroyed",
+  camp_fire_damaged_or_destroyed_structures_per_1000_residents: "Camp Fire Damaged or Destroyed Structures per 1,000 Residents",
+  camp_fire_residential_structures_destroyed: "Camp Fire Residential Structures Destroyed",
+  camp_fire_structures_inspected: "Camp Fire Structures Inspected",
+  camp_fire_destruction_rate_pct: "Camp Fire Destruction Rate (%)",
+});
 
 const ID_COLUMNS = new Set([
   "NAME",
@@ -303,7 +382,6 @@ const els = Object.fromEntries(
     "bottomTableTitle",
     "statsSubtitle",
     "themeToggle",
-    "themeToggleIcon",
     "themeToggleText",
     "variableMetadata",
     "metadataTitle",
@@ -327,11 +405,13 @@ const els = Object.fromEntries(
     "tractStateSelect",
     "mapChart",
     "tractMap",
+    "drawSelectionNotice",
     "trendChart",
   ].map((id) => [id, document.getElementById(id)]),
 );
 
 let tractMap = null;
+let mapDraw = null;
 let tractLegend = null;
 let tractHoverPopup = null;
 let tractCountyBoundaries = null;
@@ -342,8 +422,14 @@ let lastAdminFitKey = null;
 let lastTractStateFitKey = null;
 let activeTractBoundaryVintage = null;
 const tractRowsByState = new Map();
-const tractLoadingStates = new Set();
-let tractPreloadPromise = null;
+const tractMetadataByState = new Map();
+const tractVariableRowsCache = new Map();
+const tractLoadPromises = new Map();
+const nationwideTractLoadPromises = new Map();
+let activeNationwideTractVariable = null;
+const TRACT_DOWNLOAD_CONCURRENCY = 6;
+let drawnAreaActive = false;
+let drawnGeoids = new Set();
 let rows = [];
 let geojson = null;
 let variables = [];
@@ -363,7 +449,7 @@ let availableYears = [];
 let yearAnimationTimer = null;
 
 const YEAR_ANIMATION_INTERVAL = 900;
-const DEFAULT_MAP_CENTER = [-95, 39.8];
+const DEFAULT_MAP_CENTER = [-90, 39.8];
 const MAP_FIT_PADDING = { top: 45, bottom: 45, left: 45, right: 135 };
 
 const titleCase = (value) =>
@@ -516,6 +602,15 @@ const variableMetadataOverrides = {
       "Higher values indicate more NFIP-insured properties filed flood claims. This does not include uninsured damage.",
     source: "FEMA OpenFEMA NFIP Redacted Claims v3",
   },
+  harvey_nfip_claims_per_1000_residents: {
+    definition:
+      "Number of Hurricane Harvey NFIP claims per 1,000 residents, using the 2017 ACS 5-year census tract population as the denominator.",
+    unit: "Claims per 1,000 residents",
+    interpretation:
+      "Higher values indicate more NFIP claims relative to the tract population. This is a population-normalized claim measure, not the percentage of residents or properties that filed a claim.",
+    source:
+      "FEMA OpenFEMA NFIP Redacted Claims v3 and U.S. Census Bureau 2017 ACS 5-year estimates",
+  },
   harvey_nfip_total_claim_payments: {
     definition:
       "Total NFIP building, contents, and Increased Cost of Compliance payments associated with Hurricane Harvey in this census tract.",
@@ -523,6 +618,15 @@ const variableMetadataOverrides = {
     interpretation:
       "Higher values indicate larger paid insured flood losses. This is not a comprehensive estimate of all Hurricane Harvey damage.",
     source: "FEMA OpenFEMA NFIP Redacted Claims v3",
+  },
+  harvey_nfip_claim_payments_per_capita: {
+    definition:
+      "Total Hurricane Harvey NFIP claim payments divided by the 2017 ACS 5-year census tract population.",
+    unit: "USD per resident",
+    interpretation:
+      "Higher values indicate larger NFIP payments relative to the tract population. This is not a comprehensive measure of all Hurricane Harvey losses.",
+    source:
+      "FEMA OpenFEMA NFIP Redacted Claims v3 and U.S. Census Bureau 2017 ACS 5-year estimates",
   },
   harvey_nfip_average_payment_per_claim: {
     definition:
@@ -599,8 +703,121 @@ const variableMetadataOverrides = {
   },
 };
 
+Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
+  if (id === "harvey" || event.kind !== "nfip") return;
+  const prefix = event.prefix;
+  const geographyNote =
+    "FEMA block-group GEOIDs were aligned to 2020 census tracts using the dominant land-area overlap in the official Census Bureau 2010–2020 relationship file.";
+  const femaSource = "FEMA OpenFEMA NFIP Redacted Claims v3";
+  const combinedSource = `${femaSource}, U.S. Census Bureau ${event.year} ACS 5-year estimates, and Census Bureau 2010–2020 geographic relationship files`;
+  variableMetadataOverrides[`${prefix}claim_count`] = {
+    definition: `Number of National Flood Insurance Program claims associated with ${event.name} and assigned to this census tract. ${geographyNote}`,
+    unit: "Claims",
+    interpretation: "Higher values indicate more NFIP-insured properties filed flood claims. This does not include uninsured damage.",
+    source: femaSource,
+  };
+  variableMetadataOverrides[`${prefix}claims_per_1000_residents`] = {
+    definition: `Number of ${event.name} NFIP claims per 1,000 residents, using the ${event.year} ACS 5-year census tract population as the denominator. ${geographyNote}`,
+    unit: "Claims per 1,000 residents",
+    interpretation: "Higher values indicate more NFIP claims relative to the tract population. This is not the percentage of residents or properties that filed a claim.",
+    source: combinedSource,
+  };
+  variableMetadataOverrides[`${prefix}total_claim_payments`] = {
+    definition: `Total NFIP building, contents, and Increased Cost of Compliance payments associated with ${event.name} in this census tract. ${geographyNote}`,
+    unit: "USD",
+    interpretation: `Higher values indicate larger paid insured flood losses. This is not a comprehensive estimate of all ${event.name} damage.`,
+    source: femaSource,
+  };
+  variableMetadataOverrides[`${prefix}claim_payments_per_capita`] = {
+    definition: `Total ${event.name} NFIP claim payments divided by the ${event.year} ACS 5-year census tract population. ${geographyNote}`,
+    unit: "USD per resident",
+    interpretation: `Higher values indicate larger NFIP payments relative to the tract population. This is not a comprehensive measure of all ${event.name} losses.`,
+    source: combinedSource,
+  };
+  variableMetadataOverrides[`${prefix}average_payment_per_claim`] = {
+    definition: `Average total NFIP payment per ${event.name} claim in this census tract.`,
+    unit: "USD per claim",
+    interpretation: "Higher values indicate a larger average paid amount among NFIP claims in the tract.",
+    source: femaSource,
+  };
+  variableMetadataOverrides[`${prefix}building_payments`] = {
+    definition: `Total NFIP payments for insured building damage associated with ${event.name}.`,
+    unit: "USD",
+    interpretation: "Higher values indicate larger paid building-loss claims.",
+    source: femaSource,
+  };
+  variableMetadataOverrides[`${prefix}contents_payments`] = {
+    definition: `Total NFIP payments for insured contents damage associated with ${event.name}.`,
+    unit: "USD",
+    interpretation: "Higher values indicate larger paid contents-loss claims.",
+    source: femaSource,
+  };
+  variableMetadataOverrides[`${prefix}icc_payments`] = {
+    definition: `Total NFIP Increased Cost of Compliance payments associated with ${event.name}.`,
+    unit: "USD",
+    interpretation: "Higher values indicate more payments for qualifying flood-risk reduction and code-compliance work.",
+    source: femaSource,
+  };
+});
+
+const campFireSource = "CAL FIRE Damage Inspection (DINS) Data";
+const campFireCombinedSource = `${campFireSource} and U.S. Census Bureau 2018 ACS 5-year estimates`;
+Object.assign(variableMetadataOverrides, {
+  camp_fire_structures_destroyed: {
+    definition: "Number of structures classified by CAL FIRE inspectors as destroyed (>50% damage) during the 2018 Camp Fire.",
+    unit: "Structures",
+    interpretation: "Higher values indicate more destroyed structures. The database reflects structures documented through the damage-inspection process.",
+    source: campFireSource,
+  },
+  camp_fire_destroyed_structures_per_1000_residents: {
+    definition: "Camp Fire structures classified as destroyed per 1,000 residents, using the 2018 ACS 5-year tract population.",
+    unit: "Destroyed structures per 1,000 residents",
+    interpretation: "Higher values indicate more destroyed structures relative to the tract population. This is not the percentage of residents who lost a home.",
+    source: campFireCombinedSource,
+  },
+  camp_fire_structures_damaged_or_destroyed: {
+    definition: "Number of Camp Fire structures classified as affected, minor damage, major damage, or destroyed by CAL FIRE inspectors.",
+    unit: "Structures",
+    interpretation: "Higher values indicate a larger number of documented structures with fire damage.",
+    source: campFireSource,
+  },
+  camp_fire_damaged_or_destroyed_structures_per_1000_residents: {
+    definition: "Camp Fire structures with any documented damage per 1,000 residents, using the 2018 ACS 5-year tract population.",
+    unit: "Damaged structures per 1,000 residents",
+    interpretation: "Higher values indicate more damaged or destroyed structures relative to the tract population.",
+    source: campFireCombinedSource,
+  },
+  camp_fire_residential_structures_destroyed: {
+    definition: "Number of destroyed structures identified as residential in the CAL FIRE damage-inspection data.",
+    unit: "Structures",
+    interpretation: "Higher values indicate more destroyed residential structures; this is a structure count rather than a household or resident count.",
+    source: campFireSource,
+  },
+  camp_fire_structures_inspected: {
+    definition: "Number of structures documented by the CAL FIRE Camp Fire damage-inspection process, including structures with no recorded damage.",
+    unit: "Structures",
+    interpretation: "Higher values indicate more inspected structures and may partly reflect settlement density and inspection coverage.",
+    source: campFireSource,
+  },
+  camp_fire_destruction_rate_pct: {
+    definition: "Percentage of inspected Camp Fire structures classified as destroyed (>50% damage).",
+    unit: "% of inspected structures",
+    interpretation: "Higher values indicate that a larger share of inspected structures in the tract was destroyed.",
+    source: campFireSource,
+  },
+});
+
 const VARIABLE_GROUP_ORDER = [
   "Specific Event — Hurricane Harvey",
+  "Specific Event — Hurricane Ida",
+  "Specific Event — Hurricane Ian",
+  "Specific Event — Camp Fire",
+  "Specific Event — Hurricane Sandy",
+  "Specific Event — Hurricane Florence",
+  "Specific Event — Hurricane Michael",
+  "Specific Event — 2016 Louisiana Floods",
+  "Specific Event — 2021 Tennessee Flooding",
+  "Specific Event — 2022 Eastern Kentucky Flooding",
   "Census — Demographics",
   "Census — Employment",
   "Census — Income & Poverty",
@@ -625,9 +842,8 @@ const VARIABLE_GROUP_ORDER = [
 function variableGroup(variable) {
   const name = String(variable).toLowerCase();
 
-  if (name.startsWith("harvey_")) {
-    return "Specific Event — Hurricane Harvey";
-  }
+  const event = eventConfigFromVariable(name);
+  if (event) return `Specific Event — ${event.name}`;
 
   if (!name.startsWith("fema_")) {
     if (/population|median_age|under_18|age_65|race|ethnicity|sex|gender/.test(name)) {
@@ -780,7 +996,7 @@ function valueKind(variable) {
   if (/income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim/.test(variable)) {
     return "dollar";
   }
-  if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count/.test(variable)) {
+  if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count|structures|assessment_locations$|assessments_110_plus_mph$/.test(variable)) {
     return "count";
   }
   if (/score|index|frequency|percentile|loss_rate/.test(variable)) return "score";
@@ -813,7 +1029,8 @@ function formatValue(value, variable) {
 }
 
 function tractNoDataLabel() {
-  if (state.dataMode === "harvey") return "No NFIP claim data";
+  const event = currentEventConfig();
+  if (event) return event.noDataLabel || (event.kind === "nfip" ? "No NFIP claim data" : "No structure damage data");
   return "No data loaded";
 }
 
@@ -881,6 +1098,13 @@ function rowMatchesStates(row) {
   return !states || states.includes(row.state_name);
 }
 
+function rowMatchesDrawnArea(row) {
+  return !drawnAreaActive || drawnGeoids.has(String(row.GEOID).padStart(
+    geographyConfig().geoidLength,
+    "0",
+  ));
+}
+
 function filtered({ includeYear = true, includeCounty = true } = {}) {
   const sourceRows = state.geography === "tract"
     ? [...tractRowsByState.values()].flat()
@@ -891,6 +1115,7 @@ function filtered({ includeYear = true, includeCounty = true } = {}) {
       (row) =>
         (!includeYear || Number(row.year) === Number(state.year)) &&
         rowMatchesStates(row) &&
+        rowMatchesDrawnArea(row) &&
         (state.geography === "state" ||
           !includeCounty ||
           state.countyKey === "All counties" ||
@@ -938,7 +1163,7 @@ function renderStatePicker() {
 }
 
 function isFemaVariable(variable = state.variable) {
-  return /^(fema_|harvey_)/.test(String(variable || ""));
+  return String(variable || "").startsWith("fema_") || Boolean(eventConfigFromVariable(variable));
 }
 
 function yearsForVariable(variable) {
@@ -1923,7 +2148,7 @@ function renderVisibility() {
 }
 
 function updateTabAvailability() {
-  const hasNoTimeSeries = /^(fema_|harvey_)/.test(state.variable || "");
+  const hasNoTimeSeries = isFemaVariable(state.variable);
   const trendButton = document.querySelector(
     '.dashboard-tab[data-tab="trend"]',
   );
@@ -1962,6 +2187,8 @@ function render() {
       : null;
   const area = countyRow
     ? `${countyRow.county_name}, ${countyRow.state_name}`
+    : drawnAreaActive
+      ? "Custom drawn area"
     : selectedStates
       ? selectedStates.length === 1
         ? selectedStates[0]
@@ -1985,6 +2212,7 @@ function render() {
           (row) =>
             Number(row.year) === Number(state.year) &&
             rowMatchesStates(row) &&
+            rowMatchesDrawnArea(row) &&
             validNumber(row[state.variable]),
         ).length,
       0,
@@ -1998,7 +2226,7 @@ function render() {
       `<b>Rows:</b> ${loadedTractRows.toLocaleString()}`;
 
     if (!data.length) {
-      els.status.textContent = tractLoadingStates.size
+      els.status.textContent = tractLoadPromises.size
         ? "Loading census tract data for the selected states…"
         : "No census tract data matches these filters.";
     }
@@ -2101,25 +2329,29 @@ function parseCsv(text) {
   });
 }
 
-async function loadHarveyEvent() {
+async function loadSpecificEvent(eventId) {
+  const event = EVENT_CONFIGS[eventId];
+  if (!event) throw new Error(`Unknown event: ${eventId}`);
+  const prefix = event.prefix;
   stopYearAnimation();
-  state.dataMode = "harvey";
+  state.dataMode = eventId;
   state.geography = "tract";
-  state.selectedStates = ["Louisiana", "Texas"];
+  state.selectedStates = [...event.states];
   state.countyKey = "All counties";
   state.activeTab = "map";
-  state.year = 2017;
+  state.year = event.year;
 
-  els.dataModeSelect.value = "harvey";
+  els.dataModeSelect.value = eventId;
   els.geographySelect.value = "tract";
   els.geographySelect.disabled = true;
-  els.status.textContent = "Loading Hurricane Harvey NFIP claims by census tract…";
+  const eventLoadingLabel = event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : "damage inspections");
+  els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by census tract…`;
 
   await loadCountyLookup();
-  const response = await fetch(HARVEY_DATA_URL);
+  const response = await fetch(event.dataUrl);
   if (!response.ok) {
     throw new Error(
-      `Could not load ${HARVEY_DATA_URL}. Put harvey_nfip_by_tract.csv inside the dashboard data folder.`,
+      `Could not load ${event.dataUrl}. Put ${event.dataUrl.split("/").at(-1)} inside the dashboard data folder.`,
     );
   }
 
@@ -2132,36 +2364,47 @@ async function loadHarveyEvent() {
 
   rows = parseCsv(await response.text()).map((row) => {
     const geoid = String(row.GEOID).padStart(11, "0");
+    const eventValues = event.kind === "nfip"
+      ? {
+          [`${prefix}claim_count`]: row.claim_count,
+          [`${prefix}claims_per_1000_residents`]: row.claims_per_1000_residents,
+          [`${prefix}total_claim_payments`]: row.total_claim_payments,
+          [`${prefix}claim_payments_per_capita`]: row.claim_payments_per_capita,
+          [`${prefix}average_payment_per_claim`]: row.average_payment_per_claim,
+          [`${prefix}building_payments`]: row.building_payments,
+          [`${prefix}contents_payments`]: row.contents_payments,
+          [`${prefix}icc_payments`]: row.icc_payments,
+        }
+      : Object.fromEntries(event.variables.map((variable) => [
+          variable,
+          row[variable.replace(prefix, "")],
+        ]));
     return normalizeRow({
       GEOID: geoid,
-      year: 2017,
+      year: event.year,
       state: geoid.slice(0, 2),
       county: geoid.slice(2, 5),
       state_name: TRACT_STATES[geoid.slice(0, 2)] || "Unknown state",
       county_name: countyNames.get(geoid.slice(0, 5)) || "Unknown county",
       tract_name: `Census Tract ${geoid.slice(5)}`,
-      harvey_nfip_claim_count: row.claim_count,
-      harvey_nfip_total_claim_payments: row.total_claim_payments,
-      harvey_nfip_average_payment_per_claim: row.average_payment_per_claim,
-      harvey_nfip_building_payments: row.building_payments,
-      harvey_nfip_contents_payments: row.contents_payments,
-      harvey_nfip_icc_payments: row.icc_payments,
+      ...eventValues,
     });
   });
 
   tractRowsByState.clear();
+  activeNationwideTractVariable = null;
   rows.forEach((row) => {
     const stateFips = row.GEOID.slice(0, 2);
     if (!tractRowsByState.has(stateFips)) tractRowsByState.set(stateFips, []);
     tractRowsByState.get(stateFips).push(row);
   });
 
-  variables = [...HARVEY_VARIABLES];
-  state.variable = "harvey_nfip_claim_count";
+  variables = [...event.variables];
+  state.variable = event.initialVariable;
   setGroupedVariableOptions(els.variableSelect, variables, state.variable);
   setMultiSelectOptions(
     els.stateSelect,
-    ["Louisiana", "Texas"],
+    event.states,
     state.selectedStates,
   );
   syncYearAnimationControls({ preserveYear: true });
@@ -2194,6 +2437,7 @@ async function loadGeography({ preserveVariable = true } = {}) {
     );
     syncGeographyControls();
     syncCountyOptions();
+    if (mapDraw) updateDrawSelection({ rerender: false });
     els.status.textContent = "Loading Census tract data by state…";
     Plotly.purge(els.mapChart);
     lastMapWasMobile = null;
@@ -2263,6 +2507,7 @@ async function loadGeography({ preserveVariable = true } = {}) {
   syncYearAnimationControls({ preserveYear: false });
   syncGeographyControls();
   syncCountyOptions();
+  if (mapDraw) updateDrawSelection({ rerender: false });
 
   Plotly.purge(els.mapChart);
   Plotly.purge(els.trendChart);
@@ -2396,8 +2641,8 @@ async function highlightTractCounty(countyGeoid) {
 
 els.dataModeSelect.addEventListener("change", async () => {
   try {
-    if (els.dataModeSelect.value === "harvey") {
-      await loadHarveyEvent();
+    if (EVENT_CONFIGS[els.dataModeSelect.value]) {
+      await loadSpecificEvent(els.dataModeSelect.value);
       return;
     }
 
@@ -2410,6 +2655,7 @@ els.dataModeSelect.addEventListener("change", async () => {
     els.geographySelect.disabled = false;
     els.geographySelect.value = "county";
     tractRowsByState.clear();
+    activeNationwideTractVariable = null;
     tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
     await loadGeography({ preserveVariable: false });
   } catch (error) {
@@ -2544,6 +2790,8 @@ els.resetButton.addEventListener("click", () => {
   state.colorScale = "Viridis";
   state.scaleMode = "robust";
   state.activeTab = "map";
+  mapDraw?.deleteAll();
+  updateDrawSelection({ rerender: false });
 
   setGroupedVariableOptions(
     els.variableSelect,
@@ -2595,9 +2843,7 @@ function handleViewportResize() {
 }
 
 function desiredTractBoundaryVintage() {
-  return state.dataMode === "harvey" || Number(state.year) < 2020
-    ? "2010"
-    : "2020";
+  return currentEventConfig()?.boundaryVintage || (Number(state.year) < 2020 ? "2010" : "2020");
 }
 
 function addTractBoundarySource(vintage) {
@@ -2652,6 +2898,74 @@ function ensureTractBoundaryVintage() {
   addTractBoundarySource(vintage);
 }
 
+function drawnPolygon() {
+  return mapDraw?.getAll()?.features?.find((feature) =>
+    feature.geometry?.type === "Polygon" || feature.geometry?.type === "MultiPolygon"
+  ) || null;
+}
+
+function centroidInsideDrawnPolygon(feature, polygon) {
+  try {
+    const geojsonFeature = typeof feature?.toJSON === "function"
+      ? feature.toJSON()
+      : feature;
+    return Boolean(
+      geojsonFeature?.geometry &&
+      booleanPointInPolygon(centroid(geojsonFeature), polygon),
+    );
+  } catch (error) {
+    console.warn("Could not test a feature centroid against the drawn polygon.", error);
+    return false;
+  }
+}
+
+function updateDrawSelection({ rerender = true } = {}) {
+  const polygon = drawnPolygon();
+  drawnGeoids = new Set();
+  drawnAreaActive = Boolean(polygon);
+
+  if (polygon && state.geography === "tract" && tractMap?.getSource("us-tracts")) {
+    tractMap
+      .querySourceFeatures("us-tracts", { sourceLayer: "tracts" })
+      .forEach((feature) => {
+        if (!centroidInsideDrawnPolygon(feature, polygon)) return;
+        drawnGeoids.add(String(feature.id).padStart(11, "0"));
+      });
+  } else if (polygon && geojson?.features) {
+    geojson.features.forEach((feature) => {
+      if (!centroidInsideDrawnPolygon(feature, polygon)) return;
+      drawnGeoids.add(adminFeatureId(feature));
+    });
+  }
+
+  if (drawnAreaActive) {
+    els.drawSelectionNotice.textContent = drawnGeoids.size
+      ? `Custom area active: ${drawnGeoids.size.toLocaleString()} ${geographyPlural().toLowerCase()} selected. Time Series and Statistics are filtered.`
+      : `Custom area active: no ${geographyPlural().toLowerCase()} intersect the shape at the current map view.`;
+    els.drawSelectionNotice.classList.add("active");
+  } else {
+    els.drawSelectionNotice.textContent =
+      "Use the polygon tool to select areas whose centroids fall inside the shape. Time Series and Statistics update automatically.";
+    els.drawSelectionNotice.classList.remove("active");
+  }
+
+  if (rerender && state.variable) {
+    refreshTractMapValues();
+    render();
+  }
+}
+
+function handleDrawCreate(event) {
+  const newestId = event.features?.[0]?.id;
+  const olderIds = mapDraw
+    .getAll()
+    .features
+    .map((feature) => feature.id)
+    .filter((id) => id !== newestId);
+  if (olderIds.length) mapDraw.delete(olderIds);
+  updateDrawSelection();
+}
+
 function initTractMap() {
   if (tractMap) return;
 
@@ -2665,6 +2979,15 @@ function initTractMap() {
   window.debugMap = tractMap;
 
   tractMap.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  mapDraw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: { polygon: true, trash: true },
+  });
+  tractMap.addControl(mapDraw, "top-left");
+  tractMap.on("draw.create", handleDrawCreate);
+  tractMap.on("draw.update", () => updateDrawSelection());
+  tractMap.on("draw.delete", () => updateDrawSelection());
 
   tractMap.on("load", () => {
     // Insert dashboard polygons below the CARTO symbol layers so city and
@@ -2776,7 +3099,10 @@ function initTractMap() {
       const { value } = tractMap.getFeatureState({
         source: "us-tracts",
         sourceLayer: "tracts",
-        id: feature.id,
+        // Use the same numeric ID used by refreshTractMapValues(). The 2010
+        // PMTiles source can expose promoted GEOIDs as strings (for example,
+        // "06007002200"), while feature state is stored under Number(GEOID).
+        id: Number(geoid),
       });
 
       if (!tractHoverPopup) {
@@ -2811,11 +3137,10 @@ function initTractMap() {
     });
 
     tractMap.on("moveend", loadVisibleTractStateData);
+    tractMap.on("moveend", () => {
+      if (drawnAreaActive) updateDrawSelection();
+    });
     tractMap.on("idle", loadVisibleTractStateData);
-
-    // Begin filling the cache immediately. Visible states are requested first,
-    // then the remaining state files are loaded in the background.
-    preloadAllTractStateData();
 
     if (pendingAdminData && state.geography !== "tract") {
       renderAdminMap(pendingAdminData);
@@ -2837,7 +3162,6 @@ function renderTractMap() {
     setMapLayerVisibility(true);
     fitTractStateSelection();
     loadVisibleTractStateData();
-    preloadAllTractStateData();
     refreshTractMapValues();
   });
 }
@@ -3015,72 +3339,133 @@ function visibleTractStateFips() {
 }
 
 async function loadVisibleTractStateData() {
-  if (state.geography !== "tract" || state.dataMode === "harvey") return;
+  if (state.geography !== "tract" || currentEventConfig()) return;
 
-  visibleTractStateFips().forEach((stateFips) => {
-    loadTractStateData(stateFips);
-  });
-}
-
-function preloadAllTractStateData() {
-  if (
-    state.geography !== "tract" ||
-    state.dataMode === "harvey" ||
-    tractPreloadPromise
-  ) {
-    return tractPreloadPromise;
+  const variable = state.variable;
+  if (activeNationwideTractVariable === variable) return;
+  if (nationwideTractLoadPromises.has(variable)) {
+    return nationwideTractLoadPromises.get(variable);
   }
 
-  const visibleStates = visibleTractStateFips();
-  const stateQueue = [
-    ...visibleStates,
-    ...Object.keys(TRACT_STATES).filter(
-      (stateFips) => !visibleStates.includes(stateFips),
-    ),
-  ];
+  const stateFipsList = Object.keys(TRACT_STATES);
+  const nationwideLoad = (async () => {
+    let completed = 0;
 
-  // A few parallel downloads keep the preload moving without flooding the
-  // browser with a request for every state at once.
-  const worker = async () => {
-    while (
-      stateQueue.length &&
-      state.geography === "tract" &&
-      state.dataMode === "annual"
+    for (
+      let start = 0;
+      start < stateFipsList.length;
+      start += TRACT_DOWNLOAD_CONCURRENCY
     ) {
-      const stateFips = stateQueue.shift();
-      await loadTractStateData(stateFips);
-    }
-  };
+      const batch = stateFipsList.slice(
+        start,
+        start + TRACT_DOWNLOAD_CONCURRENCY,
+      );
+      await Promise.all(batch.map((stateFips) =>
+        loadTractStateData(stateFips, { variable, updateUi: false })
+      ));
+      completed += batch.length;
 
-  tractPreloadPromise = Promise.all([worker(), worker(), worker()]).finally(() => {
-    tractPreloadPromise = null;
+      if (
+        state.dataMode === "annual" &&
+        state.geography === "tract" &&
+        state.variable === variable
+      ) {
+        refreshTractMapValues();
+        render();
+        els.status.textContent =
+          `Loading ${variableLabel(variable)} nationwide… ${completed} of ${stateFipsList.length} states loaded.`;
+      }
+    }
+
+    if (
+      state.dataMode === "annual" &&
+      state.geography === "tract" &&
+      state.variable === variable
+    ) {
+      activeNationwideTractVariable = variable;
+      refreshTractMapValues();
+      render();
+    }
+  })().finally(() => {
+    nationwideTractLoadPromises.delete(variable);
   });
 
-  return tractPreloadPromise;
+  nationwideTractLoadPromises.set(variable, nationwideLoad);
+  return nationwideLoad;
 }
 
-async function loadTractStateData(stateFips) {
-  if (state.dataMode === "harvey") return;
+async function loadTractStateData(
+  stateFips,
+  { variable = state.variable, updateUi = true } = {},
+) {
+  if (currentEventConfig()) return;
+  const cacheKey = `${stateFips}|${variable}`;
 
-  if (tractRowsByState.has(stateFips) || tractLoadingStates.has(stateFips)) {
+  if (tractVariableRowsCache.has(cacheKey)) {
+    tractRowsByState.set(stateFips, tractVariableRowsCache.get(cacheKey));
+    if (updateUi) refreshTractMapValues();
     return;
   }
+  if (tractLoadPromises.has(cacheKey)) return tractLoadPromises.get(cacheKey);
 
-  tractLoadingStates.add(stateFips);
+  const loadPromise = (async () => {
+    try {
+      if (updateUi) {
+        els.status.textContent =
+          `Loading ${variableLabel(variable)} for ${TRACT_STATES[stateFips] || "the selected state"} census tracts…`;
+      }
+      const [metadata, valueRows] = await Promise.all([
+        loadTractMetadata(stateFips),
+        loadParquet(`data/tract_variables/${stateFips}/${variable}.parquet`),
+      ]);
+      const normalizedRows = valueRows.map((row) => {
+        const geoid = String(row.GEOID ?? "").padStart(11, "0");
+        return normalizeRow({
+          ...(metadata.get(geoid) || {}),
+          GEOID: geoid,
+          year: row.year,
+          [variable]: row.value,
+        });
+      });
 
-  try {
-    els.status.textContent =
-      `Loading Census tract data by state… ${tractRowsByState.size} of ${Object.keys(TRACT_STATES).length} loaded.`;
-    const dataUrl = `data/by_state/acs_tract_year_fema_state_${stateFips}.parquet`;
-    const parquetRows = await loadParquet(dataUrl);
-    tractRowsByState.set(stateFips, parquetRows.map(normalizeRow));
-    refreshTractMapValues();
-    render();
-  } catch (error) {
-    console.error(`Could not load tract data for state ${stateFips}.`, error);
-  } finally {
-    tractLoadingStates.delete(stateFips);
+      tractVariableRowsCache.set(cacheKey, normalizedRows);
+      if (state.dataMode === "annual" && state.variable === variable) {
+        tractRowsByState.set(stateFips, normalizedRows);
+        if (updateUi) {
+          refreshTractMapValues();
+          render();
+        }
+      }
+      return normalizedRows;
+    } catch (error) {
+      console.error(`Could not load ${variable} tract data for state ${stateFips}.`, error);
+      if (updateUi && state.dataMode === "annual" && state.variable === variable) {
+        els.status.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+      }
+      return [];
+    } finally {
+      tractLoadPromises.delete(cacheKey);
+    }
+  })();
+
+  tractLoadPromises.set(cacheKey, loadPromise);
+  return loadPromise;
+}
+
+async function loadTractMetadata(stateFips) {
+  if (tractMetadataByState.has(stateFips)) {
+    return tractMetadataByState.get(stateFips);
   }
+
+  const rows = await loadParquet(
+    `data/tract_variables/${stateFips}/metadata.parquet`,
+  );
+  const metadata = new Map(rows.map((row) => {
+    const geoid = String(row.GEOID ?? "").padStart(11, "0");
+    return [geoid, { ...row, GEOID: geoid }];
+  }));
+  tractMetadataByState.set(stateFips, metadata);
+  return metadata;
 }
 
 function tractColorRamp() {
@@ -3106,9 +3491,14 @@ function refreshTractMapValues() {
   // Feature state persists in MapLibre. Clear every tract we have previously
   // loaded before applying the newly selected variable/year, otherwise a tract
   // with no value can incorrectly keep a value from the previous variable.
+  const loadedGeoids = new Set();
+  tractMetadataByState.forEach((metadata) => {
+    metadata.forEach((row, geoid) => loadedGeoids.add(geoid));
+  });
   tractRowsByState.forEach((stateRows) => {
-    const geoids = new Set(stateRows.map((row) => String(row.GEOID).padStart(11, "0")));
-    geoids.forEach((geoid) => {
+    stateRows.forEach((row) => loadedGeoids.add(String(row.GEOID).padStart(11, "0")));
+  });
+  loadedGeoids.forEach((geoid) => {
       tractMap.setFeatureState(
         {
           source: "us-tracts",
@@ -3117,7 +3507,6 @@ function refreshTractMapValues() {
         },
         { value: null },
       );
-    });
   });
 
   tractRowsByState.forEach((stateRows) => {
@@ -3125,6 +3514,7 @@ function refreshTractMapValues() {
       (row) =>
         Number(row.year) === Number(state.year) &&
         rowMatchesStates(row) &&
+        rowMatchesDrawnArea(row) &&
         validNumber(row[state.variable]),
     );
 
@@ -3167,8 +3557,9 @@ function refreshTractMapValues() {
 
   updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
 
-  els.status.textContent = state.dataMode === "harvey"
-    ? `Showing Hurricane Harvey NFIP claims for ${values.length.toLocaleString()} census tracts.`
+  const event = currentEventConfig();
+  els.status.textContent = event
+    ? `Showing ${event.name} ${event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : "structure damage")} for ${values.length.toLocaleString()} census tracts.`
     : `Loaded tract data for ${tractRowsByState.size} state${tractRowsByState.size === 1 ? "" : "s"}.`;
 }
 

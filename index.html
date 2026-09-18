@@ -6,6 +6,7 @@
   <title>ACS &amp; FEMA Geographic Dashboard</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@latest/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-draw@1.5.0/dist/mapbox-gl-draw.css">
   <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
 <body>
@@ -31,7 +32,22 @@
           Data
           <select id="dataModeSelect">
             <option value="annual" selected>Annual Census &amp; FEMA risk data</option>
-            <option value="harvey">Specific event: Hurricane Harvey (2017)</option>
+            <optgroup label="Hurricanes">
+              <option value="sandy">Hurricane Sandy (2012)</option>
+              <option value="harvey">Hurricane Harvey (2017)</option>
+              <option value="florence">Hurricane Florence (2018)</option>
+              <option value="michael">Hurricane Michael (2018)</option>
+              <option value="ida">Hurricane Ida (2021)</option>
+              <option value="ian">Hurricane Ian (2022)</option>
+            </optgroup>
+            <optgroup label="Floods">
+              <option value="louisiana_floods_2016">Louisiana Floods (2016)</option>
+              <option value="tennessee_flooding_2021">Tennessee Flooding (2021)</option>
+              <option value="eastern_kentucky_flooding_2022">Eastern Kentucky Flooding (2022)</option>
+            </optgroup>
+            <optgroup label="Wildfire">
+              <option value="camp_fire">Camp Fire (2018)</option>
+            </optgroup>
           </select>
         </label>
 
@@ -189,6 +205,9 @@
 
       <section id="mapSection" class="section-card">
         <h2>Map</h2>
+        <div id="drawSelectionNotice" class="draw-selection-notice">
+          Use the polygon tool to select areas whose centroids fall inside the shape. Time Series and Statistics update automatically.
+        </div>
         <div id="mapChart" class="chart map-chart"></div>
         <div id="tractMap" class="chart map-chart hidden"></div>
       </section>

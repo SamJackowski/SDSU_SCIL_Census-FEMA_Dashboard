@@ -438,6 +438,35 @@ button.region-preset:hover {
   gap: 8px;
 }
 
+.draw-selection-notice {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  font-size: 13px;
+}
+
+.draw-selection-notice.active {
+  border-color: #22c55e;
+  color: #14532d;
+  background: #f0fdf4;
+  font-weight: 600;
+}
+
+:root[data-theme="dark"] .draw-selection-notice {
+  border-color: #1d4ed8;
+  color: #bfdbfe;
+  background: #172554;
+}
+
+:root[data-theme="dark"] .draw-selection-notice.active {
+  border-color: #16a34a;
+  color: #bbf7d0;
+  background: #052e16;
+}
+
 .year-animation-controls {
   display: flex;
   align-items: center;
