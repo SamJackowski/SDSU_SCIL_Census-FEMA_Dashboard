@@ -1,11 +1,11 @@
 # SDSU SCIL Census–FEMA Dashboard
 
 An interactive web dashboard for exploring county-level demographic, socioeconomic, and FEMA National Risk Index data across the United States.  
-  
-Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)
-Directed by Distinguished Professor Samuel Shen (SCIL Director)
-August 2026  
-Version 1.1.4
+   
+Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)  
+Directed by Distinguished Professor Samuel Shen (SCIL Director)  
+August 2026   
+Version 1.1.4  
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
