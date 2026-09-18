@@ -831,10 +831,155 @@ Measures heat wave hazard risk and estimated annual frequency.
 
 ---
 
+---
+
+# Specific Event Variables
+
+These variables describe insurance claims and payments associated with individual disaster events included in the dashboard. Event variables are primarily derived from **FEMA National Flood Insurance Program (NFIP) claims data**.
+
+The same metrics are used for named hurricane and flood events when the required NFIP data are available.
+
+## Average Payment per Claim
+
+**Dashboard Label:** `<Event Name> Average Payment per Claim`
+
+**Definition:** Average NFIP payment per claim associated with the selected disaster event.
+
+**Unit:** U.S. Dollars per claim
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+## Building Payments
+
+**Dashboard Label:** `<Event Name> Building Payments`
+
+**Definition:** Total NFIP payments for insured building damage associated with the selected disaster event.
+
+**Unit:** U.S. Dollars
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+## Compliance Payments
+
+**Dashboard Label:** `<Event Name> Compliance Payments`
+
+**Definition:** Total Increased Cost of Compliance (ICC) payments associated with the selected disaster event. These payments may help policyholders meet floodplain management requirements following substantial or repetitive flood damage.
+
+**Unit:** U.S. Dollars
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+## Contents Payments
+
+**Dashboard Label:** `<Event Name> Contents Payments`
+
+**Definition:** Total NFIP payments for insured personal property and building contents damaged during the selected disaster event.
+
+**Unit:** U.S. Dollars
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+## NFIP Claim Count
+
+**Dashboard Label:** `<Event Name> NFIP Claim Count`
+
+**Definition:** Number of NFIP claims associated with the selected disaster event within the geographic area.
+
+**Unit:** Claims
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+## NFIP Claim Payments per Capita
+
+**Dashboard Label:** `<Event Name> NFIP Claim Payments per Capita`
+
+**Definition:** Total NFIP claim payments associated with the selected disaster event divided by the resident population of the geographic area.
+
+**Calculation:**  
+`Total NFIP Claim Payments / Population`
+
+**Unit:** U.S. Dollars per resident
+
+**Source:** FEMA National Flood Insurance Program (NFIP) and U.S. Census Bureau population data
+
+---
+
+## NFIP Claims per 1,000 Residents
+
+**Dashboard Label:** `<Event Name> NFIP Claims per 1,000 Residents`
+
+**Definition:** Number of NFIP claims associated with the selected disaster event relative to the population of the geographic area.
+
+**Calculation:**  
+`(NFIP Claim Count / Population) × 1,000`
+
+**Unit:** Claims per 1,000 residents
+
+**Source:** FEMA National Flood Insurance Program (NFIP) and U.S. Census Bureau population data
+
+---
+
+## Total Claim Payments
+
+**Dashboard Label:** `<Event Name> Total Claim Payments`
+
+**Definition:** Total NFIP insurance claim payments associated with the selected disaster event within the geographic area.
+
+**Unit:** U.S. Dollars
+
+**Source:** FEMA National Flood Insurance Program (NFIP)
+
+---
+
+# Hurricane Events
+
+Named hurricane events use the NFIP event variables described above.
+
+For example, **Hurricane Harvey** includes:
+
+- Hurricane Harvey Average Payment per Claim
+- Hurricane Harvey Building Payments
+- Hurricane Harvey Compliance Payments
+- Hurricane Harvey Contents Payments
+- Hurricane Harvey NFIP Claim Count
+- Hurricane Harvey NFIP Claim Payments per Capita
+- Hurricane Harvey NFIP Claims per 1,000 Residents
+- Hurricane Harvey Total Claim Payments
+
+The same definitions apply to other named hurricanes included in the dashboard.
+
+---
+
+# Flood Events
+
+Named flood events use the same NFIP event variables when the required claim data are available:
+
+- `<Flood Event> Average Payment per Claim`
+- `<Flood Event> Building Payments`
+- `<Flood Event> Compliance Payments`
+- `<Flood Event> Contents Payments`
+- `<Flood Event> NFIP Claim Count`
+- `<Flood Event> NFIP Claim Payments per Capita`
+- `<Flood Event> NFIP Claims per 1,000 Residents`
+- `<Flood Event> Total Claim Payments`
+
+These variables represent **NFIP-insured claims and payments**, not the total economic damage caused by the disaster. Properties without NFIP coverage and losses not covered by NFIP are therefore not represented in these measures.
+
 # Interpretation Notes
 
 - Census variables are derived from the **American Community Survey (ACS)**.
 - FEMA variables are derived from the **FEMA National Risk Index (NRI)**.
+- Event variables for hurricanes and floods use **FEMA NFIP Claim Data**
 - Expected annual loss variables are estimates of long-term average annual economic loss.
 - Risk scores are relative measures and should generally be interpreted by comparing counties rather than as absolute values.
 - Annual frequency variables represent modeled average hazard occurrence and differ by hazard type (events per year, days per year, or annual probability).
