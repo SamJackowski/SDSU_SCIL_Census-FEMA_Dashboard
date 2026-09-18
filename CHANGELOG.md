@@ -28,4 +28,6 @@
 - Fixed issue where certain states could not be hovered over on the map display
 - Added event selector mode to show specific events starting with just Hurricane Harvey and more to be added in the future
 
-- 
+## Version 1.1.4 (9/18/2026) 
+- Greatly expanded specific events adding multiple hurricanes and flood events
+
