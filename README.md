@@ -21,10 +21,11 @@ https://samjackowski.github.io/SDSU_SCIL_Census-FEMA_Dashboard/
 
 ## Features
 
-- Interactive county choropleth maps
+- Interactive county and census tract choropleth maps
 - Animated yearly visualization for ACS variables
+- Census tract insurance info for specific disaster events.
 - FEMA hazard and National Risk Index variables
-- State and county filtering
+- State,county, and census tract filtering
 - Regional preset selections
 - Summary statistics and county rankings
 - Time series visualization for ACS variables
@@ -50,6 +51,8 @@ The data preparation notebook is available [here](https://github.com/SamJackowsk
 - JavaScript
 - Plotly.js
 - Hyparquet
+- Python
+- MapLibre PMTiles
 
 ## Help
 
@@ -59,14 +62,26 @@ Detailed information about each variable used in the Dashboard can be found in [
 
 ```
 .
+├── CHANGELOG.md
+├── README.md
+├── VARIABLE_DICTIONARY.md
 ├── app.js
+├── build_county_lookup.py
 ├── index.html
 ├── styles.css
-└── data/
-    ├── acs_county_year_fema_flood_risk.parquet
-    └── us_counties_geojson.json
-    └── us_states_geojson.json
-    └── acs_state_year_fema_flood_risk.parquet
+└── data
+    ├── events/
+    │   └── ...
+    ├── tiles/
+    │   └── ...
+    ├── tract_variables/
+    │   └── ...
+    ├── county_lookup.json
+    ├── us_states_geojson.json
+    ├── us_counties_geojson.json
+    ├── acs_state_year_fema_flood_risk.parquet
+    └── acs_county_year_fema_flood_risk.parquet
+
 ```
 ## More Previews
 
