@@ -28,7 +28,13 @@
 - Fixed issue where certain states could not be hovered over on the map display
 - Added event selector mode to show specific events starting with just Hurricane Harvey and more to be added in the future
 
-## Version 1.1.4 (9/18/2026) 
+## Version 1.1.3.1 (9/18/2026) 
 - Greatly expanded specific events adding multiple hurricanes and flood events
 - Added drawing tool to select specific counties/tracts (BETA) 
+
+## Version 1.1.3.2 (9/29/2026)
+- Added more events to the event selector
+- Greatly expanded analysis mode for event comparison
+- Added nationwide NFIP data of policy holders
+
 
