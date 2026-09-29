@@ -32,11 +32,20 @@
           Data
           <select id="dataModeSelect">
             <option value="annual" selected>Annual Census &amp; FEMA risk data</option>
+            <optgroup label="El Niño Winters">
+              <option value="el_nino_2015_16">2015-16 El Niño (Southern US &amp; West Coast)</option>
+              <option value="el_nino_2023_24">2023-24 El Niño (Southern US &amp; West Coast)</option>
+              <option value="fema_pa_2022_23">2022-23 CA Extreme Winter Storms (FEMA PA)</option>
+            </optgroup>
             <optgroup label="Hurricanes">
               <option value="sandy">Hurricane Sandy (2012)</option>
+              <option value="matthew">Hurricane Matthew (2016)</option>
               <option value="harvey">Hurricane Harvey (2017)</option>
+              <option value="irma">Hurricane Irma (2017)</option>
+              <option value="maria">Hurricane Maria (2017)</option>
               <option value="florence">Hurricane Florence (2018)</option>
               <option value="michael">Hurricane Michael (2018)</option>
+              <option value="laura">Hurricane Laura (2020)</option>
               <option value="ida">Hurricane Ida (2021)</option>
               <option value="ian">Hurricane Ian (2022)</option>
             </optgroup>
@@ -47,6 +56,9 @@
             </optgroup>
             <optgroup label="Wildfire">
               <option value="camp_fire">Camp Fire (2018)</option>
+            </optgroup>
+            <optgroup label="National Coverage">
+              <option value="nationwide_nfip_policies_2023">Nationwide NFIP Policies (2023)</option>
             </optgroup>
           </select>
         </label>
@@ -242,11 +254,159 @@
 
       <section id="statsSection" class="section-card hidden">
         <h2>Statistics</h2>
-        <div id="statsSubtitle" class="subtle">Summary values and county rankings for the selected map year.</div>
-        <div id="summaryCards" class="summary-grid"></div>
+        <div id="statsSubtitle" class="subtle">Summary values, totals, rankings, and changes over time for the currently filtered geographies.</div>
+
+        <nav id="statsViewTabs" class="stats-view-tabs" role="tablist" aria-label="Statistics views">
+          <button type="button" class="stats-view-tab active" data-stats-view="overview" role="tab" aria-selected="true">Overview</button>
+          <button type="button" class="stats-view-tab" data-stats-view="distribution" role="tab" aria-selected="false">Distribution</button>
+          <button type="button" class="stats-view-tab" data-stats-view="table" role="tab" aria-selected="false">Data table</button>
+          <button type="button" class="stats-view-tab" data-stats-view="relationships" role="tab" aria-selected="false">Relationships</button>
+          <button type="button" class="stats-view-tab" data-stats-view="events" role="tab" aria-selected="false">Compare events</button>
+        </nav>
+
+        <!-- Overview -->
+        <div id="statsView-overview" class="stats-view" data-view="overview">
+<div id="summaryCards" class="summary-grid"></div>
         <div class="table-grid">
           <div><h3 id="topTableTitle">Top 10 Counties</h3><div id="topTable"></div></div>
           <div><h3 id="bottomTableTitle">Bottom 10 Counties</h3><div id="bottomTable"></div></div>
+        </div>
+        <div id="insuranceAnalysis" class="insurance-analysis hidden">
+          <div class="stats-trend-heading">
+            <h3>Flood Insurance Analysis</h3>
+            <div class="subtle">NFIP loss metrics summarize claim volume, paid losses, claim severity, and how concentrated payments are across the filtered census tracts.</div>
+          </div>
+          <div id="insuranceSummary" class="summary-grid insurance-summary"></div>
+          <div class="insurance-analysis-grid">
+            <div>
+              <h3>Payment Composition</h3>
+              <div id="insuranceCompositionChart" class="chart insurance-composition-chart"></div>
+            </div>
+            <div>
+              <h3>Highest-Payment Tracts</h3>
+              <div id="insuranceTopTable"></div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- Distribution -->
+        <div id="statsView-distribution" class="stats-view hidden" data-view="distribution">
+          <div class="explorer-controls">
+            <label>Bins: <strong id="distBinsValue">30</strong>
+              <input id="distBins" type="range" min="10" max="80" step="1" value="30">
+            </label>
+            <label>X scale
+              <select id="distScale">
+                <option value="linear">Linear</option>
+                <option value="log">Log (positive values only)</option>
+              </select>
+            </label>
+            <label>Histogram range
+              <select id="distRange">
+                <option value="full">All values</option>
+                <option value="trim">1st–99th percentile</option>
+              </select>
+            </label>
+          </div>
+          <div id="distNote" class="subtle small-note"></div>
+          <div id="distSummary" class="summary-grid dist-summary"></div>
+          <div id="distChart" class="chart"></div>
+          <div class="table-grid">
+            <div><h3>Percentiles</h3><div id="distPercentiles"></div></div>
+            <div><h3>Concentration</h3><div id="distConcentration"></div></div>
+          </div>
+          <h3>Threshold explorer</h3>
+          <div class="explorer-controls">
+            <label>Locations above this value
+              <input id="distThreshold" type="text" inputmode="decimal" placeholder="e.g. 50000" autocomplete="off">
+            </label>
+          </div>
+          <div id="distThresholdResult" class="threshold-result"></div>
+        </div>
+
+        <!-- Data table -->
+        <div id="statsView-table" class="stats-view hidden" data-view="table">
+          <div class="explorer-controls">
+            <label>Search
+              <input id="tableSearch" type="search" placeholder="Name, county, state or GEOID" autocomplete="off">
+            </label>
+            <label>Minimum value
+              <input id="tableMin" type="text" inputmode="decimal" placeholder="Min" autocomplete="off">
+            </label>
+            <label>Maximum value
+              <input id="tableMax" type="text" inputmode="decimal" placeholder="Max" autocomplete="off">
+            </label>
+            <label>Rows per page
+              <select id="tablePageSize">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+            <label>Extra columns
+              <select id="tableAddColumn"></select>
+            </label>
+            <div class="explorer-action">
+              <button type="button" id="tableExport" class="secondary">Download CSV</button>
+            </div>
+          </div>
+          <div id="tableColumnChips" class="state-chips"></div>
+          <div class="table-meta"><span id="tableCount"></span></div>
+          <div id="tableWrap" class="table-scroll"></div>
+          <div class="table-pager">
+            <button type="button" id="tablePrev" class="secondary">← Previous</button>
+            <span id="tablePageLabel"></span>
+            <button type="button" id="tableNext" class="secondary">Next →</button>
+          </div>
+        </div>
+
+        <!-- Relationships -->
+        <div id="statsView-relationships" class="stats-view hidden" data-view="relationships">
+          <div class="subtle analysis-intro">Compare two variables across the filtered locations. Pearson r, R² and a linear fit show how strongly they move together. This is an association, not proof of cause.</div>
+          <div class="analysis-controls">
+            <label>X variable<select id="analysisXSelect"></select></label>
+            <label>Y variable<select id="analysisYSelect"></select></label>
+          </div>
+          <div id="analysisMessage" class="analysis-message hidden"></div>
+          <div id="analysisSummary" class="summary-grid analysis-summary"></div>
+          <div id="analysisChart" class="chart analysis-chart"></div>
+        </div>
+
+        <!-- Compare events -->
+        <div id="statsView-events" class="stats-view hidden" data-view="events">
+          <div class="subtle">Compare NFIP flood claims across events using tract-level data. Wildfire events are not included because they use damage inspections rather than claims.</div>
+          <div class="explorer-controls">
+            <fieldset class="event-fieldset">
+              <legend>Events</legend>
+              <div id="eventChecks" class="event-checks"></div>
+            </fieldset>
+            <label>Dollar basis
+              <select id="eventDollars">
+                <option value="nominal">Nominal (as paid)</option>
+                <option value="constant">Constant dollars (inflation-adjusted)</option>
+              </select>
+            </label>
+            <label>Minimum claims per tract
+              <input id="eventMinClaims" type="number" min="1" step="1" value="1">
+            </label>
+            <label>Chart metric
+              <select id="eventMetric"></select>
+            </label>
+            <div class="explorer-action">
+              <button type="button" id="eventExport" class="secondary">Download CSV</button>
+            </div>
+          </div>
+          <div id="eventDollarNote" class="subtle small-note"></div>
+          <div id="eventMessage" class="analysis-message hidden"></div>
+          <div class="table-scroll"><div id="eventCompareTable"></div></div>
+          <div id="eventBarChart" class="chart event-chart"></div>
+          <div class="event-chart-grid">
+            <div id="eventMixChart" class="chart event-chart"></div>
+            <div id="eventSeverityChart" class="chart event-chart"></div>
+          </div>
+          <div id="eventLorenzChart" class="chart event-chart"></div>
         </div>
       </section>
     </main>

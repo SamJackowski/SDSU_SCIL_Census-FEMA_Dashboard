@@ -2,6 +2,7 @@ import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+es
 import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@latest/+esm";
 import centroid from "https://cdn.jsdelivr.net/npm/@turf/centroid@7.2.0/+esm";
 import booleanPointInPolygon from "https://cdn.jsdelivr.net/npm/@turf/boolean-point-in-polygon@7.2.0/+esm";
+import { createStatsExplorer } from "./stats-explorer.js";
 
 const pmtilesProtocol = new Protocol();
 maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
@@ -65,15 +66,23 @@ const EVENT_VARIABLE_SUFFIXES = [
   "icc_payments",
 ];
 const EVENT_CONFIGS = {
-  harvey: { name: "Hurricane Harvey", year: 2017, states: ["Louisiana", "Texas"], boundaryVintage: "2010", kind: "nfip" },
-  ida: { name: "Hurricane Ida", year: 2021, states: ["Louisiana"], boundaryVintage: "2020", kind: "nfip" },
-  ian: { name: "Hurricane Ian", year: 2022, states: ["Florida"], boundaryVintage: "2020", kind: "nfip" },
   sandy: { name: "Hurricane Sandy", year: 2012, states: ["New Jersey", "New York"], boundaryVintage: "2010", kind: "nfip" },
+  matthew: { name: "Hurricane Matthew", year: 2016, states: ["Florida", "Georgia", "South Carolina", "North Carolina"], boundaryVintage: "2010", kind: "nfip" },
+  harvey: { name: "Hurricane Harvey", year: 2017, states: ["Louisiana", "Texas"], boundaryVintage: "2010", kind: "nfip" },
+  irma: { name: "Hurricane Irma", year: 2017, states: ["Florida", "Georgia", "South Carolina"], boundaryVintage: "2010", kind: "nfip" },
+  maria: { name: "Hurricane Maria", year: 2017, states: ["Puerto Rico"], boundaryVintage: "2010", kind: "nfip" },
   florence: { name: "Hurricane Florence", year: 2018, states: ["North Carolina", "South Carolina"], boundaryVintage: "2010", kind: "nfip" },
   michael: { name: "Hurricane Michael", year: 2018, states: ["Florida"], boundaryVintage: "2010", kind: "nfip" },
+  laura: { name: "Hurricane Laura", year: 2020, states: ["Louisiana", "Texas"], boundaryVintage: "2020", kind: "nfip" },
+  ida: { name: "Hurricane Ida", year: 2021, states: ["Louisiana"], boundaryVintage: "2020", kind: "nfip" },
+  ian: { name: "Hurricane Ian", year: 2022, states: ["Florida"], boundaryVintage: "2020", kind: "nfip" },
   louisiana_floods_2016: { name: "2016 Louisiana Floods", year: 2016, states: ["Louisiana"], boundaryVintage: "2010", kind: "nfip" },
   tennessee_flooding_2021: { name: "2021 Tennessee Flooding", year: 2021, states: ["Tennessee"], boundaryVintage: "2020", kind: "nfip" },
   eastern_kentucky_flooding_2022: { name: "2022 Eastern Kentucky Flooding", year: 2022, states: ["Kentucky"], boundaryVintage: "2020", kind: "nfip" },
+  el_nino_2015_16: { name: "2015-16 El Niño Winter", year: 2016, states: ["California", "Texas", "Louisiana", "Mississippi", "Alabama", "Georgia", "Florida", "South Carolina", "North Carolina"], boundaryVintage: "2010", kind: "nfip" },
+  el_nino_2023_24: { name: "2023-24 El Niño Winter", year: 2024, states: ["California", "Texas", "Louisiana", "Mississippi", "Alabama", "Georgia", "Florida", "South Carolina", "North Carolina"], boundaryVintage: "2020", kind: "nfip" },
+  fema_pa_2022_23: { name: "2022-23 Extreme Winter Storms (FEMA PA)", year: 2023, states: ["California"], boundaryVintage: "2020", kind: "fema_pa", geography: "county", dataUrl: "data/events/fema_pa_2022_23_by_county.csv", variables: ["pa_federal_share", "pa_project_amount"], initialVariable: "pa_federal_share" },
+  nationwide_nfip_policies_2023: { name: "Nationwide NFIP Policies (2023)", year: 2023, boundaryVintage: "2020", geography: "tract", dataUrl: "data/events/nationwide_nfip_policies_2023_by_tract.csv", variables: ["nfip_policy_count", "nfip_policies_per_1000"], initialVariable: "nfip_policy_count", states: Object.values(TRACT_STATES), initialStates: [] },
   camp_fire: {
     name: "Camp Fire",
     year: 2018,
@@ -184,6 +193,10 @@ const labels = {
   fema_heat_wave_expected_annual_loss: "Heat Wave Expected Annual Loss",
   fema_heat_wave_eal_score: "Heat Wave EAL Score",
   fema_heat_wave_annual_frequency: "Heat Wave Annual Frequency",
+  pa_federal_share: "Public Assistance Federal Share",
+  pa_project_amount: "Public Assistance Project Amount",
+  nfip_policy_count: "Active NFIP Policies",
+  nfip_policies_per_1000: "Active NFIP Policies per 1,000 Residents",
 };
 
 Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
@@ -375,6 +388,10 @@ const els = Object.fromEntries(
     "dashboardTabs",
     "mapChart",
     "trendChart",
+    "insuranceAnalysis",
+    "insuranceSummary",
+    "insuranceCompositionChart",
+    "insuranceTopTable",
     "summaryCards",
     "topTable",
     "bottomTable",
@@ -407,6 +424,12 @@ const els = Object.fromEntries(
     "tractMap",
     "drawSelectionNotice",
     "trendChart",
+    "statsViewTabs",
+    "analysisXSelect",
+    "analysisYSelect",
+    "analysisMessage",
+    "analysisSummary",
+    "analysisChart",
   ].map((id) => [id, document.getElementById(id)]),
 );
 
@@ -444,6 +467,7 @@ let state = {
   colorScale: "Viridis",
   scaleMode: "robust",
   activeTab: "map",
+  statsView: "overview",
 };
 let availableYears = [];
 let yearAnimationTimer = null;
@@ -808,16 +832,24 @@ Object.assign(variableMetadataOverrides, {
 });
 
 const VARIABLE_GROUP_ORDER = [
+  "Specific Event — Hurricane Sandy",
+  "Specific Event — Hurricane Matthew",
   "Specific Event — Hurricane Harvey",
+  "Specific Event — Hurricane Irma",
+  "Specific Event — Hurricane Maria",
+  "Specific Event — Hurricane Florence",
+  "Specific Event — Hurricane Michael",
+  "Specific Event — Hurricane Laura",
   "Specific Event — Hurricane Ida",
   "Specific Event — Hurricane Ian",
   "Specific Event — Camp Fire",
-  "Specific Event — Hurricane Sandy",
-  "Specific Event — Hurricane Florence",
-  "Specific Event — Hurricane Michael",
   "Specific Event — 2016 Louisiana Floods",
   "Specific Event — 2021 Tennessee Flooding",
   "Specific Event — 2022 Eastern Kentucky Flooding",
+  "Specific Event — 2015-16 El Niño Winter",
+  "Specific Event — 2023-24 El Niño Winter",
+  "Specific Event — 2022-23 Extreme Winter Storms (FEMA PA)",
+  "Specific Event — Nationwide NFIP Policies (2023)",
   "Census — Demographics",
   "Census — Employment",
   "Census — Income & Poverty",
@@ -993,7 +1025,7 @@ const stddev = (values) => {
 function valueKind(variable) {
   if (variable === "median_year_built") return "year";
   if (/rate|pct|percent/.test(variable)) return "percent";
-  if (/income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim/.test(variable)) {
+  if (/income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim|amount|share/.test(variable)) {
     return "dollar";
   }
   if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count|structures|assessment_locations$|assessments_110_plus_mph$/.test(variable)) {
@@ -1437,7 +1469,7 @@ function syncGeographyControls() {
   els.topTableTitle.textContent = `Top 10 ${geographyPlural()}`;
   els.bottomTableTitle.textContent = `Bottom 10 ${geographyPlural()}`;
   els.statsSubtitle.textContent =
-    `Summary values and ${geographyLabel().toLowerCase()} rankings for the selected map year.`;
+    `Summary values, sum totals, and ${geographyLabel().toLowerCase()} rankings for the selected map year.`;
 }
 
 function syncCountyOptions() {
@@ -1905,6 +1937,7 @@ Plotly.react(
 }
 
 function renderTrend() {
+  const chartElement = els.trendChart;
   const data = filtered({ includeYear: false, includeCounty: true });
   const selectedStates = selectedStateNames();
   const traces = [];
@@ -1978,7 +2011,7 @@ function renderTrend() {
     });
 
     Plotly.react(
-      els.trendChart,
+      chartElement,
       traces,
       {
         ...plotTheme(),
@@ -2087,13 +2120,47 @@ function tableHtml(data) {
     .join("")}</tbody></table>`;
 }
 
+function syncStatsViewVisibility() {
+  document.querySelectorAll("#statsSection .stats-view").forEach((element) => {
+    element.classList.toggle("hidden", element.dataset.view !== state.statsView);
+  });
+  document.querySelectorAll(".stats-view-tab").forEach((button) => {
+    const active = button.dataset.statsView === state.statsView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+}
+
 function renderStats(data) {
+  syncStatsViewVisibility();
+
+  switch (state.statsView) {
+    case "distribution":
+      statsExplorer.renderDistribution(data);
+      break;
+    case "table":
+      statsExplorer.renderTable(data);
+      break;
+    case "relationships":
+      renderAnalysis().catch(console.error);
+      break;
+    case "events":
+      statsExplorer.renderEvents().catch(console.error);
+      break;
+    default:
+      renderStatsOverview(data);
+  }
+}
+
+function renderStatsOverview(data) {
   const values = data.map((row) => row.value);
   const hasValues = values.length > 0;
+  const total = hasValues ? values.reduce((sum, value) => sum + value, 0) : NaN;
   const cards = [
     [geographyPlural(), values.length.toLocaleString()],
     ["Average", hasValues ? formatValue(mean(values), state.variable) : "—"],
     ["Median", hasValues ? formatValue(median(values), state.variable) : "—"],
+    ["Sum", hasValues ? formatValue(total, state.variable) : "—"],
     ["Minimum", hasValues ? formatValue(Math.min(...values), state.variable) : "—"],
     ["Maximum", hasValues ? formatValue(Math.max(...values), state.variable) : "—"],
     ["Std. Dev.", hasValues ? formatValue(stddev(values), state.variable) : "—"],
@@ -2109,6 +2176,379 @@ function renderStats(data) {
   const ranked = [...data].sort((a, b) => b.value - a.value);
   els.topTable.innerHTML = tableHtml(ranked.slice(0, 10));
   els.bottomTable.innerHTML = tableHtml(ranked.slice(-10).reverse());
+  renderInsuranceAnalysis(data);
+}
+
+function renderInsuranceAnalysis(data) {
+  const event = currentEventConfig();
+  if (!event || event.kind !== "nfip") {
+    els.insuranceAnalysis.classList.add("hidden");
+    els.insuranceSummary.innerHTML = "";
+    els.insuranceTopTable.innerHTML = "";
+    Plotly.purge(els.insuranceCompositionChart);
+    return;
+  }
+
+  const prefix = event.prefix;
+  const keys = {
+    claims: `${prefix}claim_count`,
+    payments: `${prefix}total_claim_payments`,
+    averagePayment: `${prefix}average_payment_per_claim`,
+    claimsPerThousand: `${prefix}claims_per_1000_residents`,
+    building: `${prefix}building_payments`,
+    contents: `${prefix}contents_payments`,
+    icc: `${prefix}icc_payments`,
+  };
+
+  const numericValues = (key) => data
+    .map((row) => toNumber(row[key]))
+    .filter(Number.isFinite);
+  const sumFor = (key) => numericValues(key).reduce((sum, value) => sum + value, 0);
+
+  const totalClaims = sumFor(keys.claims);
+  const totalPayments = sumFor(keys.payments);
+  const weightedAverage = totalClaims ? totalPayments / totalClaims : NaN;
+  const topPaymentRows = data
+    .filter((row) => validNumber(row[keys.payments]))
+    .sort((a, b) => toNumber(b[keys.payments]) - toNumber(a[keys.payments]));
+  const topTenPayments = topPaymentRows
+    .slice(0, 10)
+    .reduce((sum, row) => sum + toNumber(row[keys.payments]), 0);
+  const topTenShare = totalPayments ? (topTenPayments / totalPayments) * 100 : NaN;
+  const claimsPerThousand = numericValues(keys.claimsPerThousand);
+
+  const cards = [
+    ["Total NFIP Claims", formatValue(totalClaims, keys.claims)],
+    ["Total Paid Losses", formatValue(totalPayments, keys.payments)],
+    ["Weighted Avg. Payment", formatValue(weightedAverage, keys.averagePayment)],
+    ["Top 10 Payment Share", Number.isFinite(topTenShare) ? `${topTenShare.toFixed(1)}%` : "—"],
+    ["Avg. Claims per 1,000", claimsPerThousand.length ? mean(claimsPerThousand).toFixed(2) : "—"],
+  ];
+  els.insuranceSummary.innerHTML = cards
+    .map(([label, value]) =>
+      `<div class="summary-card"><div class="summary-label">${label}</div><div class="summary-value">${value}</div></div>`,
+    )
+    .join("");
+
+  const composition = [
+    ["Building payments", sumFor(keys.building)],
+    ["Contents payments", sumFor(keys.contents)],
+    ["Compliance payments", sumFor(keys.icc)],
+  ];
+  const dark = isDarkMode();
+  Plotly.react(
+    els.insuranceCompositionChart,
+    [{
+      type: "bar",
+      x: composition.map(([label]) => label),
+      y: composition.map(([, value]) => value),
+      marker: { color: ["#2563eb", "#14b8a6", "#f59e0b"] },
+      hovertemplate: "%{x}<br>%{y:$,.0f}<extra></extra>",
+    }],
+    {
+      ...plotTheme(),
+      title: { text: `${event.name} paid-loss composition`, x: 0.01 },
+      xaxis: { title: { text: "Payment category" }, automargin: true },
+      yaxis: { title: { text: "Paid amount (USD)" }, tickprefix: "$", separatethousands: true, gridcolor: dark ? "#374151" : "#e5e7eb" },
+      margin: { l: 70, r: 20, t: 55, b: 80 },
+      height: 390,
+      showlegend: false,
+    },
+    { responsive: true, displaylogo: false },
+  );
+
+  els.insuranceTopTable.innerHTML = `<table class="dash-table"><thead><tr><th>Tract</th><th>County</th><th>Claims</th><th>Paid losses</th><th>Avg. payment</th></tr></thead><tbody>${topPaymentRows
+    .slice(0, 10)
+    .map((row) => `<tr><td>${escapeHtml(row.tract_name || row.GEOID)}</td><td>${escapeHtml(row.county_name || "Unknown county")}</td><td>${formatValue(row[keys.claims], keys.claims)}</td><td>${formatValue(row[keys.payments], keys.payments)}</td><td>${formatValue(row[keys.averagePayment], keys.averagePayment)}</td></tr>`)
+    .join("")}</tbody></table>`;
+  els.insuranceAnalysis.classList.remove("hidden");
+}
+
+
+function analysisLocationLabel(row) {
+  if (state.geography === "state") return row.state_name || "Unknown state";
+  if (state.geography === "tract") {
+    return `${row.tract_name || row.GEOID}, ${row.county_name || "Unknown county"}, ${row.state_name || "Unknown state"}`;
+  }
+  return `${row.county_name || "Unknown county"}, ${row.state_name || "Unknown state"}`;
+}
+
+function syncAnalysisVariableOptions() {
+  if (!els.analysisXSelect || !els.analysisYSelect || !variables.length) return;
+
+  const available = variables.filter(Boolean);
+  if (!available.length) return;
+
+  if (!state.analysisX || !available.includes(state.analysisX)) {
+    state.analysisX = available.includes("poverty_rate")
+      ? "poverty_rate"
+      : available.find((variable) => variable !== state.variable) || available[0];
+  }
+
+  if (!state.analysisY || !available.includes(state.analysisY)) {
+    state.analysisY = available.includes(state.variable)
+      ? state.variable
+      : available.find((variable) => variable !== state.analysisX) || available[0];
+  }
+
+  if (state.analysisX === state.analysisY && available.length > 1) {
+    state.analysisX = available.find((variable) => variable !== state.analysisY) || available[0];
+  }
+
+  setGroupedVariableOptions(els.analysisXSelect, available, state.analysisX);
+  setGroupedVariableOptions(els.analysisYSelect, available, state.analysisY);
+}
+
+function pearsonCorrelation(xValues, yValues) {
+  const count = Math.min(xValues.length, yValues.length);
+  if (count < 2) return NaN;
+
+  const xMean = mean(xValues);
+  const yMean = mean(yValues);
+  let numerator = 0;
+  let xSquared = 0;
+  let ySquared = 0;
+
+  for (let index = 0; index < count; index += 1) {
+    const xDelta = xValues[index] - xMean;
+    const yDelta = yValues[index] - yMean;
+    numerator += xDelta * yDelta;
+    xSquared += xDelta ** 2;
+    ySquared += yDelta ** 2;
+  }
+
+  const denominator = Math.sqrt(xSquared * ySquared);
+  return denominator ? numerator / denominator : NaN;
+}
+
+function linearRegression(xValues, yValues) {
+  if (xValues.length < 2) return { slope: NaN, intercept: NaN };
+  const xMean = mean(xValues);
+  const yMean = mean(yValues);
+  let numerator = 0;
+  let denominator = 0;
+
+  for (let index = 0; index < xValues.length; index += 1) {
+    const xDelta = xValues[index] - xMean;
+    numerator += xDelta * (yValues[index] - yMean);
+    denominator += xDelta ** 2;
+  }
+
+  if (!denominator) return { slope: NaN, intercept: NaN };
+  const slope = numerator / denominator;
+  return { slope, intercept: yMean - slope * xMean };
+}
+
+function analysisBaseRows() {
+  const sourceRows = state.geography === "tract"
+    ? [...tractRowsByState.values()].flat()
+    : rows;
+
+  return sourceRows.filter(
+    (row) =>
+      Number(row.year) === Number(state.year) &&
+      rowMatchesStates(row) &&
+      rowMatchesDrawnArea(row) &&
+      (state.geography === "state" ||
+        state.countyKey === "All counties" ||
+        countySelectionKey(row) === state.countyKey),
+  );
+}
+
+async function tractAnalysisRows() {
+  const event = currentEventConfig();
+  if (event) return analysisBaseRows();
+
+  if (!state.selectedStates.length) {
+    return null;
+  }
+
+  const selectedFips = Object.entries(TRACT_STATES)
+    .filter(([, stateName]) => state.selectedStates.includes(stateName))
+    .map(([fips]) => fips);
+
+  const pairMaps = await Promise.all(
+    [state.analysisX, state.analysisY].map(async (variable) => {
+      const variableRows = (
+        await Promise.all(
+          selectedFips.map((fips) =>
+            loadTractStateData(fips, { variable, updateUi: false }),
+          ),
+        )
+      ).flat();
+      return new Map(
+        variableRows
+          .filter((row) => Number(row.year) === Number(state.year))
+          .map((row) => [String(row.GEOID).padStart(11, "0"), row]),
+      );
+    }),
+  );
+
+  const [xRows, yRows] = pairMaps;
+  const joined = [];
+
+  xRows.forEach((xRow, geoid) => {
+    const yRow = yRows.get(geoid);
+    if (!yRow) return;
+    const row = {
+      ...xRow,
+      [state.analysisY]: yRow[state.analysisY],
+    };
+    if (
+      rowMatchesStates(row) &&
+      rowMatchesDrawnArea(row) &&
+      (state.countyKey === "All counties" || countySelectionKey(row) === state.countyKey)
+    ) {
+      joined.push(row);
+    }
+  });
+
+  return joined;
+}
+
+function renderAnalysisSummary(pairs, correlation, regression) {
+  const rSquared = Number.isFinite(correlation) ? correlation ** 2 : NaN;
+  const cards = [
+    ["Observations", pairs.length.toLocaleString()],
+    ["Pearson r", Number.isFinite(correlation) ? correlation.toFixed(3) : "—"],
+    ["R²", Number.isFinite(rSquared) ? rSquared.toFixed(3) : "—"],
+    ["Slope", Number.isFinite(regression.slope) ? regression.slope.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"],
+  ];
+
+  els.analysisSummary.innerHTML = cards
+    .map(
+      ([label, value]) =>
+        `<div class="summary-card"><div class="summary-label">${label}</div><div class="summary-value">${value}</div></div>`,
+    )
+    .join("");
+}
+
+async function renderAnalysis() {
+  syncAnalysisVariableOptions();
+  els.analysisMessage.classList.add("hidden");
+  els.analysisMessage.textContent = "";
+
+  if (!state.analysisX || !state.analysisY) return;
+
+  if (state.analysisX === state.analysisY) {
+    els.analysisMessage.textContent = "Choose two different variables to compare.";
+    els.analysisMessage.classList.remove("hidden");
+    els.analysisSummary.innerHTML = "";
+    Plotly.purge(els.analysisChart);
+    return;
+  }
+
+  if (state.geography === "tract" && !currentEventConfig() && !state.selectedStates.length) {
+    els.analysisMessage.textContent =
+      "Select one or more states before running tract-level relationship analysis. This avoids loading two variables for every census tract nationwide.";
+    els.analysisMessage.classList.remove("hidden");
+    els.analysisSummary.innerHTML = "";
+    Plotly.purge(els.analysisChart);
+    return;
+  }
+
+  els.analysisMessage.textContent = "Loading analysis data…";
+  els.analysisMessage.classList.remove("hidden");
+
+  const sourceRows = state.geography === "tract"
+    ? await tractAnalysisRows()
+    : analysisBaseRows();
+
+  if (sourceRows === null) return;
+
+  const pairs = sourceRows
+    .filter(
+      (row) =>
+        validNumber(row[state.analysisX]) &&
+        validNumber(row[state.analysisY]),
+    )
+    .map((row) => ({
+      row,
+      x: toNumber(row[state.analysisX]),
+      y: toNumber(row[state.analysisY]),
+    }));
+
+  if (state.activeTab !== "stats" || state.statsView !== "relationships") return;
+
+  if (pairs.length < 2) {
+    els.analysisMessage.textContent =
+      "Not enough matched observations are available for these variables and filters.";
+    els.analysisMessage.classList.remove("hidden");
+    els.analysisSummary.innerHTML = "";
+    Plotly.purge(els.analysisChart);
+    return;
+  }
+
+  els.analysisMessage.classList.add("hidden");
+  const xValues = pairs.map((pair) => pair.x);
+  const yValues = pairs.map((pair) => pair.y);
+  const correlation = pearsonCorrelation(xValues, yValues);
+  const regression = linearRegression(xValues, yValues);
+  renderAnalysisSummary(pairs, correlation, regression);
+
+  const dark = isDarkMode();
+  const traces = [
+    {
+      type: "scatter",
+      mode: "markers",
+      x: xValues,
+      y: yValues,
+      text: pairs.map((pair) => analysisLocationLabel(pair.row)),
+      marker: { size: 8, opacity: 0.65 },
+      hovertemplate:
+        "<b>%{text}</b><br>" +
+        `${variableLabel(state.analysisX)}: %{x}<br>` +
+        `${variableLabel(state.analysisY)}: %{y}<extra></extra>`,
+      name: "Observations",
+    },
+  ];
+
+  if (Number.isFinite(regression.slope) && Number.isFinite(regression.intercept)) {
+    const xMin = Math.min(...xValues);
+    const xMax = Math.max(...xValues);
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      x: [xMin, xMax],
+      y: [
+        regression.intercept + regression.slope * xMin,
+        regression.intercept + regression.slope * xMax,
+      ],
+      line: { width: 3 },
+      hoverinfo: "skip",
+      name: "Linear fit",
+    });
+  }
+
+  Plotly.react(
+    els.analysisChart,
+    traces,
+    {
+      ...plotTheme(),
+      title: {
+        text: `${variableLabel(state.analysisY)} vs. ${variableLabel(state.analysisX)}`,
+        x: 0.01,
+        font: { size: isMobile() ? 17 : 24 },
+      },
+      xaxis: {
+        title: { text: axisTitle(state.analysisX) },
+        automargin: true,
+        gridcolor: dark ? "#374151" : "#e5e7eb",
+        zerolinecolor: dark ? "#4b5563" : "#d1d5db",
+      },
+      yaxis: {
+        title: { text: axisTitle(state.analysisY) },
+        automargin: true,
+        gridcolor: dark ? "#374151" : "#e5e7eb",
+        zerolinecolor: dark ? "#4b5563" : "#d1d5db",
+      },
+      legend: { orientation: "h", y: -0.2 },
+      margin: { l: 70, r: 20, t: 60, b: 80 },
+      height: isMobile() ? 440 : 560,
+      hovermode: "closest",
+    },
+    { responsive: true, displaylogo: false },
+  );
 }
 
 function renderVariableMetadata() {
@@ -2241,9 +2681,14 @@ function render() {
     els.status.innerHTML = '<div class="error">No data matches these filters.</div>';
     Plotly.purge(els.mapChart);
     Plotly.purge(els.trendChart);
+    Plotly.purge(els.insuranceCompositionChart);
     els.summaryCards.innerHTML = "";
     els.topTable.innerHTML = "";
     els.bottomTable.innerHTML = "";
+    if (state.activeTab === "stats" && state.statsView === "events") {
+      syncStatsViewVisibility();
+      statsExplorer.renderEvents().catch(console.error);
+    }
     return;
   }
 
@@ -2335,17 +2780,17 @@ async function loadSpecificEvent(eventId) {
   const prefix = event.prefix;
   stopYearAnimation();
   state.dataMode = eventId;
-  state.geography = "tract";
-  state.selectedStates = [...event.states];
+  state.geography = event.geography || "tract";
+  state.selectedStates = event.initialStates ? [...event.initialStates] : [...event.states];
   state.countyKey = "All counties";
   state.activeTab = "map";
   state.year = event.year;
 
   els.dataModeSelect.value = eventId;
-  els.geographySelect.value = "tract";
+  els.geographySelect.value = state.geography;
   els.geographySelect.disabled = true;
-  const eventLoadingLabel = event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : "damage inspections");
-  els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by census tract…`;
+  const eventLoadingLabel = event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : (event.kind === "fema_pa" ? "Public Assistance" : "damage inspections"));
+  els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by ${state.geography}…`;
 
   await loadCountyLookup();
   const response = await fetch(event.dataUrl);
@@ -2363,7 +2808,9 @@ async function loadSpecificEvent(eventId) {
   );
 
   rows = parseCsv(await response.text()).map((row) => {
-    const geoid = String(row.GEOID).padStart(11, "0");
+    const isCounty = state.geography === "county";
+    const geoidLen = isCounty ? 5 : 11;
+    const geoid = String(row.GEOID).padStart(geoidLen, "0");
     const eventValues = event.kind === "nfip"
       ? {
           [`${prefix}claim_count`]: row.claim_count,
@@ -2377,7 +2824,7 @@ async function loadSpecificEvent(eventId) {
         }
       : Object.fromEntries(event.variables.map((variable) => [
           variable,
-          row[variable.replace(prefix, "")],
+          row[variable.replace(prefix || "", "")],
         ]));
     return normalizeRow({
       GEOID: geoid,
@@ -2386,7 +2833,7 @@ async function loadSpecificEvent(eventId) {
       county: geoid.slice(2, 5),
       state_name: TRACT_STATES[geoid.slice(0, 2)] || "Unknown state",
       county_name: countyNames.get(geoid.slice(0, 5)) || "Unknown county",
-      tract_name: `Census Tract ${geoid.slice(5)}`,
+      tract_name: isCounty ? null : `Census Tract ${geoid.slice(5)}`,
       ...eventValues,
     });
   });
@@ -2402,6 +2849,7 @@ async function loadSpecificEvent(eventId) {
   variables = [...event.variables];
   state.variable = event.initialVariable;
   setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+  syncAnalysisVariableOptions();
   setMultiSelectOptions(
     els.stateSelect,
     event.states,
@@ -2502,6 +2950,7 @@ async function loadGeography({ preserveVariable = true } = {}) {
   ].sort();
 
   setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+  syncAnalysisVariableOptions();
   setMultiSelectOptions(els.stateSelect, states, state.selectedStates);
 
   syncYearAnimationControls({ preserveYear: false });
@@ -2515,6 +2964,45 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
   render();
 }
+
+const statsExplorer = createStatsExplorer({
+  getState: () => state,
+  getVariables: () => variables,
+  variableLabel,
+  formatValue,
+  escapeHtml,
+  axisTitle,
+  isDarkMode,
+  plotTheme,
+  isMobile,
+  geographyPlural,
+  eventConfigs: EVENT_CONFIGS,
+  parseCsv,
+  tractStates: TRACT_STATES,
+  getCountyNames: async () => {
+    await loadCountyLookup();
+    return new Map(
+      countyLookup.map((county) => [String(county.geoid).padStart(5, "0"), county.name]),
+    );
+  },
+});
+
+els.statsViewTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-stats-view]");
+  if (!button) return;
+  state.statsView = button.dataset.statsView;
+  render();
+});
+
+els.analysisXSelect.addEventListener("change", () => {
+  state.analysisX = els.analysisXSelect.value;
+  renderAnalysis().catch(console.error);
+});
+
+els.analysisYSelect.addEventListener("change", () => {
+  state.analysisY = els.analysisYSelect.value;
+  renderAnalysis().catch(console.error);
+});
 
 async function init() {
   try {
@@ -2778,6 +3266,7 @@ els.dashboardTabs.addEventListener("click", (event) => {
   render();
 });
 
+
 els.resetButton.addEventListener("click", () => {
   stopYearAnimation();
 
@@ -2798,7 +3287,6 @@ els.resetButton.addEventListener("click", () => {
     variables,
     state.variable,
   );
-
   syncYearAnimationControls({
     preserveYear: false,
   });
