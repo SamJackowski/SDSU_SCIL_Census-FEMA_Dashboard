@@ -14,7 +14,7 @@ button { border-color: #2563eb; background: #2563eb; color: #fff; font-weight: 7
 button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
 .status { margin-top: 18px; font-size: 12px; }
 .dashboard-container { min-width: 0; max-width: 1500px; width: 100%; margin: 0 auto; padding: 24px; }
-.header-card { border: 1px solid #dbeafe; border-radius: 16px; padding: 22px 24px; margin-bottom: 22px; background: linear-gradient(135deg, #eff6ff 0%, #fff 70%); box-shadow: 0 2px 8px rgba(30,64,175,.08); }
+.header-card { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; border: 1px solid #dbeafe; border-radius: 16px; padding: 22px 24px; margin-bottom: 22px; background: linear-gradient(135deg, #eff6ff 0%, #fff 70%); box-shadow: 0 2px 8px rgba(30,64,175,.08); }
 .header-card h2 { margin: 6px 0 8px; font-size: 30px; }
 .meta { color: #374151; line-height: 1.6; }
 .section-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 18px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
@@ -40,7 +40,7 @@ button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
 .hidden { display: none; }
 .error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; }
 @media (max-width: 1100px) { .summary-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 800px) { .app-shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid #e5e7eb; } .table-grid { grid-template-columns: 1fr; } .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 800px) { .app-shell { grid-template-columns: 1fr; }  .table-grid { grid-template-columns: 1fr; } .summary-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .field-help {
   font-size: 11px;
@@ -62,7 +62,7 @@ select[multiple] option {
 .dashboard-tabs {
   display: flex;
   gap: 8px;
-  margin: 0 0 18px;
+  margin: 0;
   padding: 6px;
   background: #e5e7eb;
   border-radius: 12px;
@@ -281,7 +281,7 @@ button.region-preset:hover {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 :root {
@@ -1122,3 +1122,428 @@ button.county-option:hover {
   .stats-view-tab { flex: 1 1 auto; padding-inline: 10px; }
   .explorer-controls { grid-template-columns: 1fr; }
 }
+
+/* Immersive Map Mode */
+body[data-active-tab="map"] .app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+body[data-active-tab="map"] .dashboard-container {
+  padding: 0;
+  max-width: none;
+  height: 100vh;
+  position: relative;
+}
+
+/* Float header and tabs horizontally above the map */
+body[data-active-tab="map"] .header-card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  margin: 0;
+  padding: 12px 24px;
+  background: rgba(17, 24, 39, 0.85); /* Dark theme */
+  backdrop-filter: blur(10px);
+  color: #f9fafb;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  max-width: calc(100% - 62px);
+}
+
+.header-card h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: nowrap;
+}
+body[data-active-tab="map"] .header-card .header-titles { flex: 1; display: flex; align-items: baseline; gap: 16px; min-width: 0; }
+body[data-active-tab="map"] .header-card .eyebrow { display: none; }
+body[data-active-tab="map"] .header-card .meta { font-size: 13px; margin: 0; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+body[data-active-tab="map"] .dashboard-tabs {
+  margin: 0;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+body[data-active-tab="map"] .dashboard-tab { color: #d1d5db; }
+body[data-active-tab="map"] .dashboard-tab:hover { background: rgba(255, 255, 255, 0.1); }
+body[data-active-tab="map"] .dashboard-tab.active { background: rgba(37, 99, 235, 0.9); color: white; border: none; box-shadow: none; }
+
+/* Make map an absolute background layer */
+body[data-active-tab="map"] #mapSection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 1;
+}
+
+body[data-active-tab="map"] .map-chart {
+  width: 100%;
+  height: 100vh !important;
+  min-height: 100vh;
+}
+
+/* Hide map heading since it is immersive */
+body[data-active-tab="map"] #mapSection h2 {
+  display: none;
+}
+
+/* Float the draw selection notice over the map at the bottom */
+body[data-active-tab="map"] #drawSelectionNotice { display: none !important; }
+
+
+/* Custom styling for Mapbox Draw Polygon Tool */
+.mapboxgl-ctrl-group button.mapbox-gl-draw_polygon,
+.maplibregl-ctrl-group button.mapbox-gl-draw_polygon {
+  width: auto !important;
+  padding: 0 10px 0 30px; /* space for icon on left */
+  position: relative;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mapboxgl-ctrl-group button.mapbox-gl-draw_polygon::after,
+.maplibregl-ctrl-group button.mapbox-gl-draw_polygon::after {
+  content: "Draw Tool";
+  line-height: 29px;
+}
+
+/* On mobile, maybe hide the text and revert to just icon */
+@media (max-width: 800px) {
+  .mapboxgl-ctrl-group button.mapbox-gl-draw_polygon::after,
+  .maplibregl-ctrl-group button.mapbox-gl-draw_polygon::after {
+    display: none;
+  }
+  .mapboxgl-ctrl-group button.mapbox-gl-draw_polygon,
+  .maplibregl-ctrl-group button.mapbox-gl-draw_polygon {
+    padding: 0;
+    width: 29px !important;
+  }
+}
+
+
+.mapboxgl-ctrl-group button.mapbox-gl-draw_polygon,
+.maplibregl-ctrl-group button.mapbox-gl-draw_polygon {
+  background-position: left 6px center !important;
+}
+
+
+/* Custom Draw Buttons in Header */
+.custom-draw-controls {
+  display: none;
+}
+body[data-active-tab="map"] .custom-draw-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.draw-tool-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px;
+  background: rgba(37, 99, 235, 0.15) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(37, 99, 235, 0.4) !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: auto !important;
+}
+.draw-tool-btn:hover {
+  background: rgba(37, 99, 235, 0.25) !important;
+  border-color: rgba(37, 99, 235, 0.6) !important;
+}
+.draw-tool-btn svg {
+  width: 15px;
+  height: 15px;
+}
+#clearPolygonBtn {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+#clearPolygonBtn:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+}
+
+
+
+
+
+/* Mobile Sidebar & Filters */
+.mobile-filter-btn {
+  display: none;
+}
+.close-sidebar-btn {
+  display: none;
+}
+.mobile-overlay {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .mobile-filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .close-sidebar-btn {
+    display: block;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 28px;
+    line-height: 1;
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    z-index: 2001;
+  }
+  /* On map mode, mobile filter button looks better matching dark theme */
+  body[data-active-tab="map"] .mobile-filter-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f9fafb;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: -100%;
+    bottom: 0;
+    width: 320px;
+    max-width: 85vw;
+    height: 100vh !important;
+    z-index: 2000;
+    transition: left 0.3s ease;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+    overflow-y: auto;
+  }
+  .sidebar.mobile-open {
+    left: 0;
+  }
+  .mobile-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .mobile-overlay.mobile-open {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  /* Ensure header flexes correctly with new button */
+  .header-titles {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+  .header-titles .header-text {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+
+@media (max-width: 800px) {
+  /* Scale down headers for mobile */
+  body[data-active-tab="map"] .header-card {
+    padding: 8px 12px;
+    gap: 8px;
+    left: 8px;
+    top: 8px;
+    max-width: calc(100% - 46px); /* Room for zoom controls */
+  }
+  .header-card h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: nowrap;
+}
+  body[data-active-tab="map"] .header-card .meta {
+    font-size: 11px;
+    opacity: 0.8;
+  }
+  .header-titles {
+    min-width: 0;
+  }
+  .header-titles .header-text {
+    min-width: 0;
+  }
+  body[data-active-tab="map"] .dashboard-tab {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  /* Draw button icon only on small mobile */
+  .draw-tool-btn {
+    padding: 6px 10px !important;
+    font-size: 0 !important; /* Hide text */
+    gap: 0;
+  }
+  .draw-tool-btn svg {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+
+/* Tract Map Legend */
+.tract-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 50px;
+  z-index: 2;
+  min-width: 205px;
+  padding: 11px 16px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  color: #f9fafb;
+  font: 14px/1.35 system-ui, sans-serif;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.tract-legend strong {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 22px;
+}
+.tract-legend-bar-container {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.tract-legend-bar {
+  width: 70px;
+  height: 390px;
+  border: 1px solid rgba(255,255,255,0.55);
+  border-radius: 4px;
+  background: linear-gradient(to top, var(--gradient-colors)) !important;
+}
+.tract-legend-labels {
+  height: 390px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Mobile Horizontal Legend */
+@media (max-width: 800px) {
+  .tract-legend {
+    right: 50%;
+    transform: translateX(50%);
+    bottom: 30px;
+    min-width: 90vw;
+    padding: 12px;
+  }
+  .tract-legend strong {
+    font-size: 14px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .tract-legend-bar-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tract-legend-bar {
+    width: 100%;
+    height: 12px;
+    background: linear-gradient(to right, var(--gradient-colors)) !important;
+  }
+  .tract-legend-labels {
+    height: auto;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+}
+
+.header-card h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: nowrap;
+}
+.header-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+
+.header-titles {
+  min-width: 0;
+  flex: 1;
+}
+.header-titles .header-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+
+@media (max-width: 800px) {
+  .header-card {
+    align-content: flex-start;
+    height: auto !important;
+    min-height: 0 !important;
+    align-items: center;
+  }
+}
+
+
+.header-card .meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+
+.mobile-filter-btn {
+  width: auto !important;
+}
+
+
+.close-sidebar-btn {
+  width: auto !important;
+}
+

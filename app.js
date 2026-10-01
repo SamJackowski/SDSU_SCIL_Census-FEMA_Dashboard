@@ -430,6 +430,9 @@ const els = Object.fromEntries(
     "analysisMessage",
     "analysisSummary",
     "analysisChart",
+    "customDrawControls",
+    "drawPolygonBtn",
+    "clearPolygonBtn",
   ].map((id) => [id, document.getElementById(id)]),
 );
 
@@ -1845,15 +1848,15 @@ colorbar: {
   // Mobile = horizontal color bar below map
   orientation: mobile ? "h" : "v",
 
-  x: mobile ? 0.5 : 1.02,
-  xanchor: mobile ? "center" : "left",
+  x: mobile ? 0.5 : 0.98,
+  xanchor: mobile ? "center" : "right",
 
-  // Move the mobile colorbar underneath the map
-  y: mobile ? -0.12 : 0.5,
-  yanchor: mobile ? "top" : "middle",
+  // Float the mobile colorbar nicely at the bottom
+  y: mobile ? 0.05 : 0.5,
+  yanchor: mobile ? "bottom" : "middle",
 
-  len: mobile ? 0.82 : 0.75,
-  thickness: mobile ? 12 : 70,
+  len: mobile ? 0.6 : 0.88,
+  thickness: mobile ? 12 : 60,
 },
 };
 
@@ -2579,6 +2582,7 @@ function renderVisibility() {
   Object.entries(sections).forEach(([name, element]) => {
     element.classList.toggle("hidden", state.activeTab !== name);
   });
+  document.body.dataset.activeTab = state.activeTab;
 
   document.querySelectorAll(".dashboard-tab").forEach((button) => {
     const active = button.dataset.tab === state.activeTab;
@@ -3411,6 +3415,9 @@ function updateDrawSelection({ rerender = true } = {}) {
   const polygon = drawnPolygon();
   drawnGeoids = new Set();
   drawnAreaActive = Boolean(polygon);
+  
+  els.clearPolygonBtn.classList.toggle("hidden", !drawnAreaActive);
+
 
   if (polygon && state.geography === "tract" && tractMap?.getSource("us-tracts")) {
     tractMap
@@ -3470,9 +3477,18 @@ function initTractMap() {
 
   mapDraw = new MapboxDraw({
     displayControlsDefault: false,
-    controls: { polygon: true, trash: true },
+    controls: {},
   });
   tractMap.addControl(mapDraw, "top-left");
+  
+  els.drawPolygonBtn.addEventListener("click", () => {
+    mapDraw.changeMode("draw_polygon");
+  });
+  
+  els.clearPolygonBtn.addEventListener("click", () => {
+    mapDraw.deleteAll();
+    updateDrawSelection();
+  });
   tractMap.on("draw.create", handleDrawCreate);
   tractMap.on("draw.update", () => updateDrawSelection());
   tractMap.on("draw.delete", () => updateDrawSelection());
@@ -4053,39 +4069,26 @@ function refreshTractMapValues() {
 
 function addTractLegend() {
   if (tractLegend) return;
-
   tractLegend = document.createElement("div");
-  tractLegend.style.cssText = [
-    "min-width: 205px",
-    "padding: 11px 10px",
-    "border-radius: 6px",
-    "background: rgba(15, 23, 42, 0.78)",
-    "color: #e5e7eb",
-    "font: 12px/1.35 system-ui, sans-serif",
-    "box-shadow: 0 2px 10px rgba(0,0,0,.35)",
-  ].join(";");
-
+  tractLegend.className = "tract-legend";
   tractMap.getContainer().appendChild(tractLegend);
-  tractLegend.style.position = "absolute";
-  tractLegend.style.right = "12px";
-  tractLegend.style.bottom = "50px";
-  tractLegend.style.zIndex = "2";
 }
 
 function updateTractLegend(minimum, midpoint, maximum, colors) {
   if (!tractLegend) return;
-
   tractLegend.innerHTML = `
-    <strong style="display:block;margin-bottom:9px;font-size:22px;">${escapeHtml(variableLabel(state.variable))}</strong>
-    <div style="display:flex;align-items:stretch;gap:10px;">
-      <div style="width:70px;height:390px;border:1px solid rgba(255,255,255,.55);border-radius:3px;background:linear-gradient(to top, ${colors.join(", ")});"></div>
-      <div style="height:390px;display:flex;flex-direction:column;justify-content:space-between;font-size:18px;font-weight:600;">        <span>${escapeHtml(formatValue(maximum, state.variable))}</span>
+    <strong>${escapeHtml(variableLabel(state.variable))}</strong>
+    <div class="tract-legend-bar-container">
+      <div class="tract-legend-bar" style="--gradient-colors: ${colors.join(', ')};"></div>
+      <div class="tract-legend-labels">
+        <span>${escapeHtml(formatValue(maximum, state.variable))}</span>
         <span>${escapeHtml(formatValue((maximum + midpoint) / 2, state.variable))}</span>
         <span>${escapeHtml(formatValue(midpoint, state.variable))}</span>
-        <span>${escapeHtml(formatValue((minimum + midpoint) / 2, state.variable))}</span>
+        <span>${escapeHtml(formatValue((midpoint + minimum) / 2, state.variable))}</span>
         <span>${escapeHtml(formatValue(minimum, state.variable))}</span>
       </div>
-    </div>`;
+    </div>
+  `;
 }
 
 window.addEventListener("resize", handleViewportResize);
@@ -4093,3 +4096,25 @@ window.addEventListener("orientationchange", handleViewportResize);
 
 initializeTheme();
 init();
+
+// Mobile Sidebar Toggle
+const mobileFilterBtn = document.getElementById("mobileFilterBtn");
+const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+const mobileOverlay = document.getElementById("mobileOverlay");
+const sidebar = document.querySelector(".sidebar");
+
+function toggleMobileSidebar() {
+  sidebar.classList.toggle("mobile-open");
+  mobileOverlay.classList.toggle("mobile-open");
+}
+
+if (mobileFilterBtn) {
+  mobileFilterBtn.addEventListener("click", toggleMobileSidebar);
+}
+if (closeSidebarBtn) {
+  closeSidebarBtn.addEventListener("click", toggleMobileSidebar);
+}
+if (mobileOverlay) {
+  mobileOverlay.addEventListener("click", toggleMobileSidebar);
+}
+
