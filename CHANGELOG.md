@@ -37,4 +37,8 @@
 - Greatly expanded analysis mode for event comparison
 - Added nationwide NFIP data of policy holders
 
+## Version 1.1.3.3 (10/1/2026) 
+-Expanded the map size in the interface 
+- Improved mobile controls (reduced colorbar size, tabs fixes, header rework, added button for filters when in mobile mode to limit scrolling)
+
 
