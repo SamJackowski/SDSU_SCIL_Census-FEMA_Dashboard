@@ -4,14 +4,15 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
    
 Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)  
 Directed by Distinguished Professor Samuel Shen (SCIL Director)  
-August 2026   
-Version 1.1.3.2 
+Released August 2026   
+Version 1.1.3.3
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
 The dashboard combines American Community Survey (ACS) estimates with FEMA hazard metrics to support exploratory analysis of population characteristics and natural hazard risk at the county level.
 
-<img width="1257" height="585" alt="image" src="https://github.com/user-attachments/assets/f038030e-dadc-4160-8f8e-cf771bb3d697" />
+<img width="1277" height="665" alt="image" src="https://github.com/user-attachments/assets/5934a4b8-5719-4524-acc5-f4b11265b9f3" />
+
 
  
 ## Running the Dashboard
@@ -81,31 +82,37 @@ Detailed information about each variable used in the Dashboard can be found in [
     ├── us_counties_geojson.json
     ├── acs_state_year_fema_flood_risk.parquet
     └── acs_county_year_fema_flood_risk.parquet
+└── scripts
+    └── ...
 
 ```
 ## More Previews
 
 ### State Filter (Map):
   
-<img width="1229" height="586" alt="image" src="https://github.com/user-attachments/assets/fadbcd59-3d6f-45e7-b65b-74fc85f1f38b" />
+<img width="1278" height="675" alt="image" src="https://github.com/user-attachments/assets/5243a3e9-4e4a-4789-8972-cde7b405a93c" />
 
 ### Tract Filter (Map):
 
-<img width="1189" height="581" alt="image" src="https://github.com/user-attachments/assets/4287d7bb-6c5f-4173-b37a-1ebf3ca3fd26" />
-
+<img width="1276" height="678" alt="image" src="https://github.com/user-attachments/assets/e4c7ad0b-6690-4d34-8137-88ef61f0e6fc" />
 
 ### Time Series:
   
-<img width="938" height="602" alt="image" src="https://github.com/user-attachments/assets/271efa93-b667-4da1-a05e-bccb30165c9d" />
-
+<img width="1265" height="665" alt="image" src="https://github.com/user-attachments/assets/87e5214e-4563-4ee9-a8e6-f33c86bdff8c" />
 
 ### Statistics:
   
-<img width="1203" height="644" alt="image" src="https://github.com/user-attachments/assets/e26e6d85-1838-4b7a-95ba-fd7455650187" />
+<img width="1265" height="662" alt="image" src="https://github.com/user-attachments/assets/9fc1e08d-7018-488d-964e-11e3aada0e68" />
 
 ### Specific Events:
 
-<img width="1242" height="676" alt="image" src="https://github.com/user-attachments/assets/9e3d3a76-e4ad-4401-a422-41a1dbc93e74" />
+<img width="1277" height="674" alt="image" src="https://github.com/user-attachments/assets/3567db76-4a94-40a4-bec4-e4af62009184" />
+
+### Event Comparer: 
+
+<img width="1262" height="659" alt="image" src="https://github.com/user-attachments/assets/06fda428-b649-4bd7-a9e1-80a91c4d8daa" />
+
+
 
 
 
