@@ -1,7 +1,8 @@
-﻿import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+esm";
-import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@latest/+esm";
+import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@6.14.0/+esm";
+import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@4.5.0/+esm";
 import centroid from "https://cdn.jsdelivr.net/npm/@turf/centroid@7.2.0/+esm";
 import booleanPointInPolygon from "https://cdn.jsdelivr.net/npm/@turf/boolean-point-in-polygon@7.2.0/+esm";
+import { parquetReadObjects } from "https://cdn.jsdelivr.net/npm/hyparquet@1.31.3/+esm";
 import { createStatsExplorer } from "./stats-explorer.js";
 
 const pmtilesProtocol = new Protocol();
@@ -54,7 +55,7 @@ const TRACT_STATES = {
   "01": "Alabama", "02": "Alaska", "04": "Arizona", "05": "Arkansas", "06": "California", "08": "Colorado", "09": "Connecticut", "10": "Delaware", "11": "District of Columbia", "12": "Florida", "13": "Georgia", "15": "Hawaii", "16": "Idaho", "17": "Illinois", "18": "Indiana", "19": "Iowa", "20": "Kansas", "21": "Kentucky", "22": "Louisiana", "23": "Maine", "24": "Maryland", "25": "Massachusetts", "26": "Michigan", "27": "Minnesota", "28": "Mississippi", "29": "Missouri", "30": "Montana", "31": "Nebraska", "32": "Nevada", "33": "New Hampshire", "34": "New Jersey", "35": "New Mexico", "36": "New York", "37": "North Carolina", "38": "North Dakota", "39": "Ohio", "40": "Oklahoma", "41": "Oregon", "42": "Pennsylvania", "44": "Rhode Island", "45": "South Carolina", "46": "South Dakota", "47": "Tennessee", "48": "Texas", "49": "Utah", "50": "Vermont", "51": "Virginia", "53": "Washington", "54": "West Virginia", "55": "Wisconsin", "56": "Wyoming", "72": "Puerto Rico",
 };
 
-const HYPARQUET_URL = "https://cdn.jsdelivr.net/npm/hyparquet@latest/+esm";
+const HYPARQUET_URL = "https://cdn.jsdelivr.net/npm/hyparquet@1.31.3/+esm";
 const EVENT_VARIABLE_SUFFIXES = [
   "claim_count",
   "claims_per_1000_residents",
@@ -2781,7 +2782,13 @@ function readForm() {
   }
 }
 
+const parquetCache = new Map();
+
 async function loadParquet(dataUrl) {
+  if (parquetCache.has(dataUrl)) {
+    return parquetCache.get(dataUrl);
+  }
+
   els.status.textContent =
     `Downloading ${geographyLabel().toLowerCase()} Parquet data...`;
 
@@ -2795,8 +2802,9 @@ async function loadParquet(dataUrl) {
   const parquetBuffer = await response.arrayBuffer();
   els.status.textContent = "Reading Parquet data in the browser...";
 
-  const { parquetReadObjects } = await import(HYPARQUET_URL);
-  return parquetReadObjects({ file: parquetBuffer });
+  const rows = parquetReadObjects({ file: parquetBuffer });
+  parquetCache.set(dataUrl, rows);
+  return rows;
 }
 
 function parseCsv(text) {
