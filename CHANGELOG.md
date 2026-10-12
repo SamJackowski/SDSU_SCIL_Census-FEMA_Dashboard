@@ -38,7 +38,11 @@
 - Added nationwide NFIP data of policy holders
 
 ## Version 1.1.3.3 (10/1/2026) 
--Expanded the map size in the interface 
+- Expanded the map size in the interface 
 - Improved mobile controls (reduced colorbar size, tabs fixes, header rework, added button for filters when in mobile mode to limit scrolling)
+
+## Version 1.1.3.4 (10/11/2026) 
+- Added El Nino data from FEMA and NOAA
+- Added Live earthquake feed to show counties with daily, weekly, and monthly statistics 
 
 
