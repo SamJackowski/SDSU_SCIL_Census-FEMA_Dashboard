@@ -2811,9 +2811,12 @@ async function loadParquet(dataUrl) {
       if (done) break;
       chunks.push(value);
       received += value.length;
-      const pct = Math.round((received / contentLength) * 100);
+      const estimatedTotal = dataUrl.includes("county")
+        ? Math.max(contentLength, 17.5 * 1024 * 1024)
+        : Math.max(contentLength, received);
+      const pct = Math.min(99, Math.round((received / estimatedTotal) * 100));
       const mbReceived = (received / (1024 * 1024)).toFixed(1);
-      const mbTotal = (contentLength / (1024 * 1024)).toFixed(1);
+      const mbTotal = (estimatedTotal / (1024 * 1024)).toFixed(1);
       els.status.textContent =
         `Downloading ${geographyLabel().toLowerCase()} data (${mbReceived} / ${mbTotal} MB · ${pct}%)...`;
     }
@@ -2828,7 +2831,9 @@ async function loadParquet(dataUrl) {
     parquetBuffer = await response.arrayBuffer();
   }
 
-  els.status.textContent = "Reading Parquet data in the browser...";
+  els.status.textContent = "Reading Parquet data in the browser (parsing rows)...";
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
   const rows = parquetReadObjects({ file: parquetBuffer });
   parquetCache.set(dataUrl, rows);
   return rows;
