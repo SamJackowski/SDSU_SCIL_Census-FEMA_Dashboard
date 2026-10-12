@@ -2799,9 +2799,36 @@ async function loadParquet(dataUrl) {
     );
   }
 
-  const parquetBuffer = await response.arrayBuffer();
-  els.status.textContent = "Reading Parquet data in the browser...";
+  const contentLength = Number(response.headers.get("content-length")) || 0;
+  let parquetBuffer;
 
+  if (response.body && contentLength > 0) {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      const pct = Math.round((received / contentLength) * 100);
+      const mbReceived = (received / (1024 * 1024)).toFixed(1);
+      const mbTotal = (contentLength / (1024 * 1024)).toFixed(1);
+      els.status.textContent =
+        `Downloading ${geographyLabel().toLowerCase()} data (${mbReceived} / ${mbTotal} MB · ${pct}%)...`;
+    }
+    const merged = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    parquetBuffer = merged.buffer;
+  } else {
+    parquetBuffer = await response.arrayBuffer();
+  }
+
+  els.status.textContent = "Reading Parquet data in the browser...";
   const rows = parquetReadObjects({ file: parquetBuffer });
   parquetCache.set(dataUrl, rows);
   return rows;
