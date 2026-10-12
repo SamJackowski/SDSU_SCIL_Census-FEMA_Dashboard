@@ -1,4 +1,4 @@
-import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+esm";
+﻿import * as maplibregl from "https://cdn.jsdelivr.net/npm/maplibre-gl@latest/+esm";
 import { Protocol } from "https://cdn.jsdelivr.net/npm/pmtiles@latest/+esm";
 import centroid from "https://cdn.jsdelivr.net/npm/@turf/centroid@7.2.0/+esm";
 import booleanPointInPolygon from "https://cdn.jsdelivr.net/npm/@turf/boolean-point-in-polygon@7.2.0/+esm";
@@ -77,38 +77,31 @@ const EVENT_CONFIGS = {
   ida: { name: "Hurricane Ida", year: 2021, states: ["Louisiana"], boundaryVintage: "2020", kind: "nfip" },
   ian: { name: "Hurricane Ian", year: 2022, states: ["Florida"], boundaryVintage: "2020", kind: "nfip" },
   louisiana_floods_2016: { name: "2016 Louisiana Floods", year: 2016, states: ["Louisiana"], boundaryVintage: "2010", kind: "nfip" },
-  tennessee_flooding_2021: { name: "2021 Tennessee Flooding", year: 2021, states: ["Tennessee"], boundaryVintage: "2020", kind: "nfip" },
-  eastern_kentucky_flooding_2022: { name: "2022 Eastern Kentucky Flooding", year: 2022, states: ["Kentucky"], boundaryVintage: "2020", kind: "nfip" },
-  el_nino_2015_16: { name: "2015-16 El Niño Winter", year: 2016, states: ["California", "Texas", "Louisiana", "Mississippi", "Alabama", "Georgia", "Florida", "South Carolina", "North Carolina"], boundaryVintage: "2010", kind: "nfip" },
-  el_nino_2023_24: { name: "2023-24 El Niño Winter", year: 2024, states: ["California", "Texas", "Louisiana", "Mississippi", "Alabama", "Georgia", "Florida", "South Carolina", "North Carolina"], boundaryVintage: "2020", kind: "nfip" },
-  fema_pa_2022_23: { name: "2022-23 Extreme Winter Storms (FEMA PA)", year: 2023, states: ["California"], boundaryVintage: "2020", kind: "fema_pa", geography: "county", dataUrl: "data/events/fema_pa_2022_23_by_county.csv", variables: ["pa_federal_share", "pa_project_amount"], initialVariable: "pa_federal_share" },
+  el_nino_2015_16: { name: "2015-16 El Niño", year: 2016, boundaryVintage: "2010", kind: "nfip", countyDataUrl: "data/events/el_nino_2015_16_damages_by_county.csv", extraVariables: ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"] },
+  el_nino_2023_24: { name: "2023-24 El Niño", year: 2024, boundaryVintage: "2020", kind: "nfip", countyDataUrl: "data/events/el_nino_2023_24_damages_by_county.csv", extraVariables: ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"] },
   nationwide_nfip_policies_2023: { name: "Nationwide NFIP Policies (2023)", year: 2023, boundaryVintage: "2020", geography: "tract", dataUrl: "data/events/nationwide_nfip_policies_2023_by_tract.csv", variables: ["nfip_policy_count", "nfip_policies_per_1000"], initialVariable: "nfip_policy_count", states: Object.values(TRACT_STATES), initialStates: [] },
-  camp_fire: {
-    name: "Camp Fire",
-    year: 2018,
-    states: ["California"],
-    boundaryVintage: "2010",
-    kind: "wildfire",
-    dataUrl: "data/events/camp_fire_damage_by_tract.csv",
-    prefix: "camp_fire_",
+  usgs_earthquakes: {
+    name: "Live Earthquakes (USGS)",
+    year: new Date().getFullYear(),
+    kind: "usgs_earthquake",
+    geography: "county",
     variables: [
-      "camp_fire_structures_destroyed",
-      "camp_fire_destroyed_structures_per_1000_residents",
-      "camp_fire_structures_damaged_or_destroyed",
-      "camp_fire_damaged_or_destroyed_structures_per_1000_residents",
-      "camp_fire_residential_structures_destroyed",
-      "camp_fire_structures_inspected",
-      "camp_fire_destruction_rate_pct",
+      "usgs_eq_count_month", "usgs_eq_count_week", "usgs_eq_count_day",
+      "usgs_eq_max_mag_month", "usgs_eq_max_mag_week",
+      "usgs_eq_avg_mag_month", "usgs_eq_avg_mag_week",
     ],
-    initialVariable: "camp_fire_structures_destroyed",
+    initialVariable: "usgs_eq_count_month",
+    states: Object.values(TRACT_STATES),
+    initialStates: [],
   },
+  
 };
 Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
   event.id = id;
   if (event.kind === "nfip") {
     event.dataUrl = `data/events/${id}_nfip_by_tract.csv`;
     event.prefix = `${id}_nfip_`;
-    event.variables = EVENT_VARIABLE_SUFFIXES.map((suffix) => `${event.prefix}${suffix}`);
+    event.variables = [...EVENT_VARIABLE_SUFFIXES.map((suffix) => `${event.prefix}${suffix}`), ...(event.extraVariables || [])];
     event.initialVariable = `${event.prefix}claim_count`;
   }
 });
@@ -119,10 +112,28 @@ function currentEventConfig() {
 
 function eventConfigFromVariable(variable) {
   const name = String(variable || "");
-  return Object.values(EVENT_CONFIGS).find((event) => name.startsWith(event.prefix)) || null;
+  return Object.values(EVENT_CONFIGS).find((event) => {
+    if (name.startsWith(event.prefix)) return true;
+    if (event.extraVariables && event.extraVariables.includes(name)) return true;
+    return false;
+  }) || null;
 }
 
 const labels = {
+  total_damage: "Total Economic Damage (USD)",
+  property_damage: "Property Damage (USD)",
+  crop_damage: "Crop Damage (USD)",
+  fema_ia_registrations: "FEMA IA Applicants",
+  fema_ia_ihp_amount: "FEMA IA Grants (USD)",
+  oct_mar_precip: "Winter Rainfall (Oct-Mar Inches)",
+  oct_mar_precip_anomaly: "Winter Rainfall Anomaly (Inches)",
+  usgs_eq_count_month: "Earthquake Count (Past Month)",
+  usgs_eq_count_week: "Earthquake Count (Past Week)",
+  usgs_eq_count_day: "Earthquake Count (Past Day)",
+  usgs_eq_max_mag_month: "Max Magnitude (Past Month)",
+  usgs_eq_max_mag_week: "Max Magnitude (Past Week)",
+  usgs_eq_avg_mag_month: "Avg Magnitude (Past Month)",
+  usgs_eq_avg_mag_week: "Avg Magnitude (Past Week)",
   total_population: "Total Population",
   median_age: "Median Age",
   under_18_population: "Population Under 18",
@@ -734,9 +745,9 @@ Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
   if (id === "harvey" || event.kind !== "nfip") return;
   const prefix = event.prefix;
   const geographyNote =
-    "FEMA block-group GEOIDs were aligned to 2020 census tracts using the dominant land-area overlap in the official Census Bureau 2010–2020 relationship file.";
+    "FEMA block-group GEOIDs were aligned to 2020 census tracts using the dominant land-area overlap in the official Census Bureau 2010-2020 relationship file.";
   const femaSource = "FEMA OpenFEMA NFIP Redacted Claims v3";
-  const combinedSource = `${femaSource}, U.S. Census Bureau ${event.year} ACS 5-year estimates, and Census Bureau 2010–2020 geographic relationship files`;
+  const combinedSource = `${femaSource}, U.S. Census Bureau ${event.year} ACS 5-year estimates, and Census Bureau 2010-2020 geographic relationship files`;
   variableMetadataOverrides[`${prefix}claim_count`] = {
     definition: `Number of National Flood Insurance Program claims associated with ${event.name} and assigned to this census tract. ${geographyNote}`,
     unit: "Claims",
@@ -790,6 +801,24 @@ Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
 const campFireSource = "CAL FIRE Damage Inspection (DINS) Data";
 const campFireCombinedSource = `${campFireSource} and U.S. Census Bureau 2018 ACS 5-year estimates`;
 Object.assign(variableMetadataOverrides, {
+
+  oct_mar_precip: {
+    definition: "Total precipitation from October through March of the winter season, measured in inches.",
+    unit: "Inches",
+    interpretation: "Higher values indicate more total rainfall and snowfall during the primary rainy season."
+  },
+  oct_mar_precip_anomaly: {
+    definition: "Difference in October-March precipitation compared to the 1991-2020 normal baseline.",
+    unit: "Inches",
+    interpretation: "Positive values indicate wetter-than-normal conditions. Negative values indicate drier-than-normal conditions."
+  },
+
+  total_damage: {
+    definition: "Total combined property and crop economic damage reported during the 2015-16 El Niño (NFIP & NOAA Data)",
+    unit: "USD",
+    interpretation: "Higher values indicate more severe economic impacts from heavy precipitation, floods, and coastal storms.",
+    source: "NOAA NCEI Storm Events Database",
+  },
   camp_fire_structures_destroyed: {
     definition: "Number of structures classified by CAL FIRE inspectors as destroyed (>50% damage) during the 2018 Camp Fire.",
     unit: "Structures",
@@ -835,42 +864,42 @@ Object.assign(variableMetadataOverrides, {
 });
 
 const VARIABLE_GROUP_ORDER = [
-  "Specific Event — Hurricane Sandy",
-  "Specific Event — Hurricane Matthew",
-  "Specific Event — Hurricane Harvey",
-  "Specific Event — Hurricane Irma",
-  "Specific Event — Hurricane Maria",
-  "Specific Event — Hurricane Florence",
-  "Specific Event — Hurricane Michael",
-  "Specific Event — Hurricane Laura",
-  "Specific Event — Hurricane Ida",
-  "Specific Event — Hurricane Ian",
-  "Specific Event — Camp Fire",
-  "Specific Event — 2016 Louisiana Floods",
-  "Specific Event — 2021 Tennessee Flooding",
-  "Specific Event — 2022 Eastern Kentucky Flooding",
-  "Specific Event — 2015-16 El Niño Winter",
-  "Specific Event — 2023-24 El Niño Winter",
-  "Specific Event — 2022-23 Extreme Winter Storms (FEMA PA)",
-  "Specific Event — Nationwide NFIP Policies (2023)",
-  "Census — Demographics",
-  "Census — Employment",
-  "Census — Income & Poverty",
-  "Census — Education",
-  "Census — Housing & Transportation",
+  "Specific Event - Hurricane Sandy",
+  "Specific Event - Hurricane Matthew",
+  "Specific Event - Hurricane Harvey",
+  "Specific Event - Hurricane Irma",
+  "Specific Event - Hurricane Maria",
+  "Specific Event - Hurricane Florence",
+  "Specific Event - Hurricane Michael",
+  "Specific Event - Hurricane Laura",
+  "Specific Event - Hurricane Ida",
+  "Specific Event - Hurricane Ian",
+  "Specific Event - Camp Fire",
+  "Specific Event - 2016 Louisiana Floods",
+  "Specific Event - 2021 Tennessee Flooding",
+  "Specific Event - 2022 Eastern Kentucky Flooding",
+  "Specific Event - 2015-16 El Niño",
+  "Specific Event - 2023-24 El Niño",
+  "Specific Event - 2022-23 Extreme Winter Storms (FEMA PA)",
+  "Specific Event - Nationwide NFIP Policies (2023)",
+  "Census - Demographics",
+  "Census - Employment",
+  "Census - Income & Poverty",
+  "Census - Education",
+  "Census - Housing & Transportation",
 
-  "FEMA — Overall Risk",
-  "FEMA — Flood",
-  "FEMA — Wildfire",
-  "FEMA — Hurricanes",
-  "FEMA — Earthquakes",
-  "FEMA — Tornadoes",
-  "FEMA — Strong Wind",
-  "FEMA — Hail",
-  "FEMA — Heat Wave",
-  "FEMA — Drought",
+  "FEMA - Overall Risk",
+  "FEMA - Flood",
+  "FEMA - Wildfire",
+  "FEMA - Hurricanes",
+  "FEMA - Earthquakes",
+  "FEMA - Tornadoes",
+  "FEMA - Strong Wind",
+  "FEMA - Hail",
+  "FEMA - Heat Wave",
+  "FEMA - Drought",
 
-  "FEMA — Other Hazards",
+  "FEMA - Other Hazards",
   "Other",
 ];
 
@@ -878,27 +907,27 @@ function variableGroup(variable) {
   const name = String(variable).toLowerCase();
 
   const event = eventConfigFromVariable(name);
-  if (event) return `Specific Event — ${event.name}`;
+  if (event) return `Specific Event - ${event.name}`;
 
   if (!name.startsWith("fema_")) {
     if (/population|median_age|under_18|age_65|race|ethnicity|sex|gender/.test(name)) {
-      return "Census — Demographics";
+      return "Census - Demographics";
     }
 
     if (/employment|labor_force|unemployment|employed/.test(name)) {
-      return "Census — Employment";
+      return "Census - Employment";
     }
 
     if (/income|poverty|gini|earnings|wage|salary/.test(name)) {
-      return "Census — Income & Poverty";
+      return "Census - Income & Poverty";
     }
 
     if (/school|education|bachelor|graduate|degree/.test(name)) {
-      return "Census — Education";
+      return "Census - Education";
     }
 
     if (/home|housing|rent|vacancy|owner|renter|vehicle|units|year_built/.test(name)) {
-      return "Census — Housing & Transportation";
+      return "Census - Housing & Transportation";
     }
 
     return "Other";
@@ -906,39 +935,39 @@ function variableGroup(variable) {
 
   // Check hazard-specific groups first.
   if (/wildfire/.test(name)) {
-    return "FEMA — Wildfire";
+    return "FEMA - Wildfire";
   }
 
   if (/flood|coastal|inland/.test(name)) {
-    return "FEMA — Flood";
+    return "FEMA - Flood";
   }
 
   if (/hurricane/.test(name)) {
-    return "FEMA — Hurricanes";
+    return "FEMA - Hurricanes";
   }
 
   if (/earthquake/.test(name)) {
-    return "FEMA — Earthquakes";
+    return "FEMA - Earthquakes";
   }
 
   if (/tornado/.test(name)) {
-    return "FEMA — Tornadoes";
+    return "FEMA - Tornadoes";
   }
 
   if (/strong_wind/.test(name)) {
-    return "FEMA — Strong Wind";
+    return "FEMA - Strong Wind";
   }
 
   if (/hail/.test(name)) {
-    return "FEMA — Hail";
+    return "FEMA - Hail";
   }
 
   if (/heat_wave/.test(name)) {
-    return "FEMA — Heat Wave";
+    return "FEMA - Heat Wave";
   }
 
   if (/drought/.test(name)) {
-    return "FEMA — Drought";
+    return "FEMA - Drought";
   }
 
   if (
@@ -949,10 +978,10 @@ function variableGroup(variable) {
       "fema_resilience_score",
     ].includes(name)
   ) {
-    return "FEMA — Overall Risk";
+    return "FEMA - Overall Risk";
   }
 
-  return "FEMA — Other Hazards";
+  return "FEMA - Other Hazards";
 }
 
 
@@ -1040,7 +1069,7 @@ function valueKind(variable) {
 
 function formatValue(value, variable) {
   const number = toNumber(value);
-  if (!Number.isFinite(number)) return "—";
+  if (!Number.isFinite(number)) return "-";
 
   const kind = valueKind(variable);
   if (kind === "year") return String(Math.round(number));
@@ -1192,7 +1221,7 @@ function renderStatePicker() {
     .map(
       (stateName) =>
         `<button type="button" class="state-chip" data-state="${escapeHtml(stateName)}" title="Remove ${escapeHtml(stateName)}">` +
-        `<span>${escapeHtml(stateName)}</span><span aria-hidden="true">×</span></button>`,
+        `<span>${escapeHtml(stateName)}</span><span aria-hidden="true">&times;</span></button>`,
     )
     .join("");
 }
@@ -1239,8 +1268,8 @@ function syncYearAnimationControls({
 
     els.yearPlayButton.disabled = true;
     els.yearDisplay.textContent = "No years";
-    els.yearStartLabel.textContent = "—";
-    els.yearEndLabel.textContent = "—";
+    els.yearStartLabel.textContent = "-";
+    els.yearEndLabel.textContent = "-";
     els.yearAnimationHelp.textContent =
       "No year data is available for this variable.";
 
@@ -1293,7 +1322,7 @@ function syncYearAnimationControls({
       `Only ${state.year} is available for this variable.`;
   } else {
     els.yearAnimationHelp.textContent =
-      "Drag the slider or press Play to move through available years.";
+      "Drag the slider or ▶ Play to move through available years.";
   }
 }
 
@@ -1316,7 +1345,7 @@ function startYearAnimation() {
 
   stopYearAnimation();
 
-  els.yearPlayButton.textContent = "❚❚ Pause";
+  els.yearPlayButton.textContent = "⏸ Pause";
   els.yearPlayButton.setAttribute(
     "aria-label",
     "Pause year animation",
@@ -1694,6 +1723,32 @@ function setTheme(theme, { save = true, rerender = true } = {}) {
     localStorage.setItem("dashboard-theme", dark ? "dark" : "light");
   }
 
+  if (tractMap) {
+    let savedDrawings = { type: "FeatureCollection", features: [] };
+    if (mapDraw) {
+      savedDrawings = mapDraw.getAll();
+    }
+    
+    const center = tractMap.getCenter();
+    const zoom = tractMap.getZoom();
+    
+    tractMap.remove();
+    tractMap = null;
+    mapDraw = null;
+    tractHoverPopup = null;
+    
+    initTractMap();
+    
+    // We must wait for the new map to load before adding the drawings back
+    tractMap.on("load", () => {
+      tractMap.jumpTo({ center, zoom });
+      if (mapDraw && savedDrawings.features.length) {
+        mapDraw.add(savedDrawings);
+        updateDrawSelection();
+      }
+    });
+  }
+
   if (rerender && rows.length && state.variable) {
     render();
   }
@@ -1728,7 +1783,7 @@ function renderMap(data) {
   }
 
   // Plotly.react() doesn't reliably clear the old colorbar's DOM when its
-  // orientation changes (vertical <-> horizontal) — it can leave a stale
+  // orientation changes (vertical <-> horizontal) - it can leave a stale
   // copy behind. Force a full purge/rebuild whenever we cross the
   // mobile/desktop boundary so there's never a leftover bar on screen.
   if (lastMapWasMobile !== null && lastMapWasMobile !== mobile) {
@@ -2161,12 +2216,12 @@ function renderStatsOverview(data) {
   const total = hasValues ? values.reduce((sum, value) => sum + value, 0) : NaN;
   const cards = [
     [geographyPlural(), values.length.toLocaleString()],
-    ["Average", hasValues ? formatValue(mean(values), state.variable) : "—"],
-    ["Median", hasValues ? formatValue(median(values), state.variable) : "—"],
-    ["Sum", hasValues ? formatValue(total, state.variable) : "—"],
-    ["Minimum", hasValues ? formatValue(Math.min(...values), state.variable) : "—"],
-    ["Maximum", hasValues ? formatValue(Math.max(...values), state.variable) : "—"],
-    ["Std. Dev.", hasValues ? formatValue(stddev(values), state.variable) : "—"],
+    ["Average", hasValues ? formatValue(mean(values), state.variable) : "-"],
+    ["Median", hasValues ? formatValue(median(values), state.variable) : "-"],
+    ["Sum", hasValues ? formatValue(total, state.variable) : "-"],
+    ["Minimum", hasValues ? formatValue(Math.min(...values), state.variable) : "-"],
+    ["Maximum", hasValues ? formatValue(Math.max(...values), state.variable) : "-"],
+    ["Std. Dev.", hasValues ? formatValue(stddev(values), state.variable) : "-"],
   ];
 
   els.summaryCards.innerHTML = cards
@@ -2224,8 +2279,8 @@ function renderInsuranceAnalysis(data) {
     ["Total NFIP Claims", formatValue(totalClaims, keys.claims)],
     ["Total Paid Losses", formatValue(totalPayments, keys.payments)],
     ["Weighted Avg. Payment", formatValue(weightedAverage, keys.averagePayment)],
-    ["Top 10 Payment Share", Number.isFinite(topTenShare) ? `${topTenShare.toFixed(1)}%` : "—"],
-    ["Avg. Claims per 1,000", claimsPerThousand.length ? mean(claimsPerThousand).toFixed(2) : "—"],
+    ["Top 10 Payment Share", Number.isFinite(topTenShare) ? `${topTenShare.toFixed(1)}%` : "-"],
+    ["Avg. Claims per 1,000", claimsPerThousand.length ? mean(claimsPerThousand).toFixed(2) : "-"],
   ];
   els.insuranceSummary.innerHTML = cards
     .map(([label, value]) =>
@@ -2413,9 +2468,9 @@ function renderAnalysisSummary(pairs, correlation, regression) {
   const rSquared = Number.isFinite(correlation) ? correlation ** 2 : NaN;
   const cards = [
     ["Observations", pairs.length.toLocaleString()],
-    ["Pearson r", Number.isFinite(correlation) ? correlation.toFixed(3) : "—"],
-    ["R²", Number.isFinite(rSquared) ? rSquared.toFixed(3) : "—"],
-    ["Slope", Number.isFinite(regression.slope) ? regression.slope.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "—"],
+    ["Pearson r", Number.isFinite(correlation) ? correlation.toFixed(3) : "-"],
+    ["R²", Number.isFinite(rSquared) ? rSquared.toFixed(3) : "-"],
+    ["Slope", Number.isFinite(regression.slope) ? regression.slope.toLocaleString(undefined, { maximumFractionDigits: 3 }) : "-"],
   ];
 
   els.analysisSummary.innerHTML = cards
@@ -2450,7 +2505,7 @@ async function renderAnalysis() {
     return;
   }
 
-  els.analysisMessage.textContent = "Loading analysis data…";
+  els.analysisMessage.textContent = "Loading analysis data...";
   els.analysisMessage.classList.remove("hidden");
 
   const sourceRows = state.geography === "tract"
@@ -2671,7 +2726,7 @@ function render() {
 
     if (!data.length) {
       els.status.textContent = tractLoadPromises.size
-        ? "Loading census tract data for the selected states…"
+        ? "Loading census tract data for the selected states..."
         : "No census tract data matches these filters.";
     }
 
@@ -2728,7 +2783,7 @@ function readForm() {
 
 async function loadParquet(dataUrl) {
   els.status.textContent =
-    `Downloading ${geographyLabel().toLowerCase()} Parquet data…`;
+    `Downloading ${geographyLabel().toLowerCase()} Parquet data...`;
 
   const response = await fetch(dataUrl);
   if (!response.ok) {
@@ -2738,7 +2793,7 @@ async function loadParquet(dataUrl) {
   }
 
   const parquetBuffer = await response.arrayBuffer();
-  els.status.textContent = "Reading Parquet data in the browser…";
+  els.status.textContent = "Reading Parquet data in the browser...";
 
   const { parquetReadObjects } = await import(HYPARQUET_URL);
   return parquetReadObjects({ file: parquetBuffer });
@@ -2778,14 +2833,64 @@ function parseCsv(text) {
   });
 }
 
+// ---- USGS Earthquake live data helpers ----
+
+function buildCountyBBoxes(geojson) {
+  return geojson.features.map(f => {
+    const rings = f.geometry.type === "Polygon"
+      ? [f.geometry.coordinates[0]]
+      : f.geometry.coordinates.map(p => p[0]);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const ring of rings) {
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+    const fips = String(f.id || (f.properties && (f.properties.GEOID || f.properties.geoid)) || "").padStart(5, "0");
+    return { fips, feature: f, bbox: [minX, minY, maxX, maxY] };
+  });
+}
+
+function aggregateQuakesByCounty(eqFeatures, countyBBoxes) {
+  const result = new Map(countyBBoxes.map(c => [c.fips, { count: 0, mags: [] }]));
+  for (const eq of eqFeatures) {
+    if (!eq.geometry) continue;
+    const [lon, lat] = eq.geometry.coordinates;
+    const mag = eq.properties.mag;
+    // Rough US + territories bounding box
+    if (lat < 17 || lat > 72 || lon < -180 || lon > -60) continue;
+    const pt = { type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] } };
+    for (const county of countyBBoxes) {
+      const [minX, minY, maxX, maxY] = county.bbox;
+      if (lon < minX - 0.05 || lon > maxX + 0.05 || lat < minY - 0.05 || lat > maxY + 0.05) continue;
+      if (booleanPointInPolygon(pt, county.feature)) {
+        const d = result.get(county.fips);
+        d.count++;
+        if (mag != null && mag > -9) d.mags.push(mag);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+// ---- End USGS helpers ----
+
 async function loadSpecificEvent(eventId) {
   const event = EVENT_CONFIGS[eventId];
   if (!event) throw new Error(`Unknown event: ${eventId}`);
   const prefix = event.prefix;
   stopYearAnimation();
   state.dataMode = eventId;
-  state.geography = event.geography || "tract";
-  state.selectedStates = event.initialStates ? [...event.initialStates] : [...event.states];
+  const targetVar = els.variableSelect.value;
+  const isNoaa = ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"].includes(targetVar);
+  if (isNoaa) {
+    state.geography = "county";
+  } else {
+    state.geography = event.geography || "tract";
+  }
+  state.selectedStates = event.initialStates ? [...event.initialStates] : (event.states ? [...event.states] : []);
   state.countyKey = "All counties";
   state.activeTab = "map";
   state.year = event.year;
@@ -2794,10 +2899,84 @@ async function loadSpecificEvent(eventId) {
   els.geographySelect.value = state.geography;
   els.geographySelect.disabled = true;
   const eventLoadingLabel = event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : (event.kind === "fema_pa" ? "Public Assistance" : "damage inspections"));
-  els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by ${state.geography}…`;
+  els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by ...`;
+
+  // ---- USGS live earthquake branch ----
+  if (event.kind === "usgs_earthquake") {
+    els.status.textContent = "Fetching live earthquake data from USGS...";
+    await loadCountyLookup();
+    const countyNames = new Map(countyLookup.map(c => [String(c.geoid).padStart(5, "0"), c.name]));
+
+    // Fetch county GeoJSON for point-in-polygon and all 3 USGS feeds in parallel
+    const [countyGeoJson, monthGj, weekGj, dayGj] = await Promise.all([
+      fetch("data/us_counties_geojson.json").then(r => r.json()),
+      fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson").then(r => r.json()),
+      fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson").then(r => r.json()),
+      fetch("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson").then(r => r.json()),
+    ]);
+
+    els.status.textContent = "Aggregating earthquakes by county (this may take a moment)...";
+    const countyBBoxes = buildCountyBBoxes(countyGeoJson);
+    const monthAgg = aggregateQuakesByCounty(monthGj.features, countyBBoxes);
+    const weekAgg  = aggregateQuakesByCounty(weekGj.features,  countyBBoxes);
+    const dayAgg   = aggregateQuakesByCounty(dayGj.features,   countyBBoxes);
+
+    const maxMag = arr => arr.length ? Math.max(...arr) : null;
+    const avgMag = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+    rows = countyBBoxes.map(({ fips }) => {
+      const m = monthAgg.get(fips) || { count: 0, mags: [] };
+      const w = weekAgg.get(fips)  || { count: 0, mags: [] };
+      const d = dayAgg.get(fips)   || { count: 0, mags: [] };
+      return normalizeRow({
+        GEOID: fips,
+        year: event.year,
+        state: fips.slice(0, 2),
+        county: fips.slice(2, 5),
+        state_name: TRACT_STATES[fips.slice(0, 2)] || "Unknown state",
+        county_name: countyNames.get(fips) || "Unknown county",
+        tract_name: null,
+        usgs_eq_count_month:  m.count || null,
+        usgs_eq_count_week:   w.count || null,
+        usgs_eq_count_day:    d.count || null,
+        usgs_eq_max_mag_month: maxMag(m.mags),
+        usgs_eq_max_mag_week:  maxMag(w.mags),
+        usgs_eq_avg_mag_month: avgMag(m.mags),
+        usgs_eq_avg_mag_week:  avgMag(w.mags),
+      });
+    });
+
+    if (state.geography === "county") {
+      const uniqueRows = new Map();
+      rows.forEach(r => uniqueRows.set(r.GEOID, r));
+      rows = Array.from(uniqueRows.values());
+    }
+    tractRowsByState.clear();
+    activeNationwideTractVariable = null;
+    rows.forEach(row => {
+      const stateFips = row.GEOID.slice(0, 2);
+      if (!tractRowsByState.has(stateFips)) tractRowsByState.set(stateFips, []);
+      tractRowsByState.get(stateFips).push(row);
+    });
+
+    variables = [...event.variables];
+    state.variable = targetVar && event.variables.includes(targetVar) ? targetVar : event.initialVariable;
+    setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+    syncAnalysisVariableOptions();
+    setMultiSelectOptions(els.stateSelect, event.states || Object.values(TRACT_STATES), state.selectedStates);
+    syncYearAnimationControls({ preserveYear: true });
+    syncGeographyControls();
+    syncCountyOptions();
+    renderStatePicker();
+    lastTractStateFitKey = null;
+    tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
+    render();
+    return;
+  }
+  // ---- End USGS branch ----
 
   await loadCountyLookup();
-  const response = await fetch(event.dataUrl);
+  const response = await fetch(event.dataUrl + "?v=" + Date.now());
   if (!response.ok) {
     throw new Error(
       `Could not load ${event.dataUrl}. Put ${event.dataUrl.split("/").at(-1)} inside the dashboard data folder.`,
@@ -2811,10 +2990,39 @@ async function loadSpecificEvent(eventId) {
     ]),
   );
 
-  rows = parseCsv(await response.text()).map((row) => {
+  let parsedRows = parseCsv(await response.text());
+    if (event.countyDataUrl) {
+      const countyResponse = await fetch(event.countyDataUrl + "?v=" + Date.now());
+      const countyRows = parseCsv(await countyResponse.text());
+      const countyMap = new Map();
+      countyRows.forEach(row => {
+          countyMap.set(String(row.GEOID).padStart(5, "0"), row);
+      });
+      const seenCounties = new Set();
+      parsedRows.forEach(row => {
+          const countyGeoid = String(row.GEOID).padStart(11, "0").slice(0, 5);
+          seenCounties.add(countyGeoid);
+          const countyData = countyMap.get(countyGeoid) || {};
+          const { GEOID, ...restCountyData } = countyData;
+          Object.assign(row, restCountyData);
+      });
+      countyRows.forEach(row => {
+          const countyGeoid = String(row.GEOID).padStart(5, "0");
+          if (!seenCounties.has(countyGeoid)) {
+              parsedRows.push({
+                  GEOID: countyGeoid,
+                  ...row
+              });
+          }
+      });
+    }
+    rows = parsedRows.map((row) => {
     const isCounty = state.geography === "county";
     const geoidLen = isCounty ? 5 : 11;
-    const geoid = String(row.GEOID).padStart(geoidLen, "0");
+    let geoid = String(row.GEOID);
+    if (!isCounty && geoid.length === 5) geoid = geoid + "999999";
+    if (isCounty) geoid = geoid.slice(0, 5).padStart(5, "0");
+    else geoid = geoid.padStart(11, "0");
     const eventValues = event.kind === "nfip"
       ? {
           [`${prefix}claim_count`]: row.claim_count,
@@ -2825,6 +3033,7 @@ async function loadSpecificEvent(eventId) {
           [`${prefix}building_payments`]: row.building_payments,
           [`${prefix}contents_payments`]: row.contents_payments,
           [`${prefix}icc_payments`]: row.icc_payments,
+          ...(event.extraVariables ? Object.fromEntries(event.extraVariables.map(v => [v, row[v]])) : {})
         }
       : Object.fromEntries(event.variables.map((variable) => [
           variable,
@@ -2842,6 +3051,12 @@ async function loadSpecificEvent(eventId) {
     });
   });
 
+  if (state.geography === "county") {
+      const uniqueRows = new Map();
+      rows.forEach(r => uniqueRows.set(r.GEOID, r));
+      rows = Array.from(uniqueRows.values());
+  }
+
   tractRowsByState.clear();
   activeNationwideTractVariable = null;
   rows.forEach((row) => {
@@ -2851,12 +3066,12 @@ async function loadSpecificEvent(eventId) {
   });
 
   variables = [...event.variables];
-  state.variable = event.initialVariable;
+  state.variable = targetVar && event.variables.includes(targetVar) ? targetVar : event.initialVariable;
   setGroupedVariableOptions(els.variableSelect, variables, state.variable);
   syncAnalysisVariableOptions();
   setMultiSelectOptions(
     els.stateSelect,
-    event.states,
+    event.states || Object.values(TRACT_STATES),
     state.selectedStates,
   );
   syncYearAnimationControls({ preserveYear: true });
@@ -2890,14 +3105,14 @@ async function loadGeography({ preserveVariable = true } = {}) {
     syncGeographyControls();
     syncCountyOptions();
     if (mapDraw) updateDrawSelection({ rerender: false });
-    els.status.textContent = "Loading Census tract data by state…";
+    els.status.textContent = "Loading Census tract data by state...";
     Plotly.purge(els.mapChart);
     lastMapWasMobile = null;
     render();
     return;
   }
 
-  els.status.textContent = `Loading ${config.label.toLowerCase()} data…`;
+  els.status.textContent = `Loading ${config.label.toLowerCase()} data...`;
 
   const dataUrl = typeof config.dataUrl === "function"
     ? config.dataUrl(state.tractStateFips)
@@ -3154,6 +3369,18 @@ els.dataModeSelect.addEventListener("change", async () => {
     els.status.innerHTML =
       `<div class="error">${escapeHtml(error.message)}</div>`;
     console.error(error);
+  }
+});
+
+els.variableSelect.addEventListener("change", async () => {
+  const isNoaa = ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"].includes(els.variableSelect.value);
+  const isNfip = els.variableSelect.value && els.variableSelect.value.includes("nfip");
+  
+  if (els.dataModeSelect.value === "el_nino_2015_16" || els.dataModeSelect.value === "el_nino_2023_24") {
+    if ((isNoaa && state.geography !== "county") || (isNfip && state.geography === "county")) {
+      // Re-load the specific event to correctly map the data onto the right geography
+      await loadSpecificEvent(els.dataModeSelect.value);
+    }
   }
 });
 
@@ -3466,7 +3693,7 @@ function initTractMap() {
 
   tractMap = new maplibregl.Map({
     container: "tractMap",
-    style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    style: isDarkMode() ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
     center: DEFAULT_MAP_CENTER,
     zoom: 3.5,
   });
@@ -3539,7 +3766,7 @@ function initTractMap() {
       id: "selected-county-outline",
       type: "line",
       source: "selected-county",
-      paint: { "line-color": "#f8fafc", "line-width": 3.5, "line-opacity": 0.95 },
+      paint: { "line-color": isDarkMode() ? "#f8fafc" : "#0f172a", "line-width": 3.5, "line-opacity": 0.95 },
     }, firstLabelLayerId);
 
     tractMap.on("mouseenter", "tract-fill", () => {
@@ -3630,9 +3857,9 @@ function initTractMap() {
         ".maplibregl-popup-content",
       );
       if (popupContent) {
-        popupContent.style.background = "#0f172a";
-        popupContent.style.color = "#f8fafc";
-        popupContent.style.border = "1px solid #2563eb";
+        popupContent.style.background = isDarkMode() ? "#0f172a" : "#ffffff";
+        popupContent.style.color = isDarkMode() ? "#f8fafc" : "#0f172a";
+        popupContent.style.border = isDarkMode() ? "1px solid #2563eb" : "1px solid #cbd5e1";
         popupContent.style.borderRadius = "8px";
         popupContent.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.45)";
         popupContent.style.padding = "10px 12px";
@@ -3707,9 +3934,9 @@ function styleMapPopup() {
   );
   if (!popupContent) return;
 
-  popupContent.style.background = "#0f172a";
-  popupContent.style.color = "#f8fafc";
-  popupContent.style.border = "1px solid #2563eb";
+  popupContent.style.background = isDarkMode() ? "#0f172a" : "#ffffff";
+        popupContent.style.color = isDarkMode() ? "#f8fafc" : "#0f172a";
+        popupContent.style.border = isDarkMode() ? "1px solid #2563eb" : "1px solid #cbd5e1";
   popupContent.style.borderRadius = "8px";
   popupContent.style.boxShadow = "0 8px 22px rgba(0, 0, 0, 0.45)";
   popupContent.style.padding = "10px 12px";
@@ -3793,15 +4020,19 @@ function renderAdminMap(data) {
   const midpoint = cmin + (cmax - cmin) / 2;
 
   tractMap.setPaintProperty("admin-fill", "fill-color", [
-    "interpolate",
-    ["linear"],
-    ["coalesce", ["feature-state", "value"], -1],
-    -1, "#94a3b8",
-    cmin, start,
-    cmin + (cmax - cmin) * 0.25, low,
-    midpoint, middle,
-    cmin + (cmax - cmin) * 0.75, high,
-    cmax, end,
+    "case",
+    ["!=", ["feature-state", "value"], null],
+    [
+      "interpolate",
+      ["linear"],
+      ["feature-state", "value"],
+      cmin, start,
+      cmin + (cmax - cmin) * 0.25, low,
+      midpoint, middle,
+      cmin + (cmax - cmin) * 0.75, high,
+      cmax, end,
+    ],
+    "#94a3b8"
   ]);
 
   addTractLegend();
@@ -3877,7 +4108,7 @@ async function loadVisibleTractStateData() {
         refreshTractMapValues();
         render();
         els.status.textContent =
-          `Loading ${variableLabel(variable)} nationwide… ${completed} of ${stateFipsList.length} states loaded.`;
+          `Loading ${variableLabel(variable)} nationwide... ${completed} of ${stateFipsList.length} states loaded.`;
       }
     }
 
@@ -3916,7 +4147,7 @@ async function loadTractStateData(
     try {
       if (updateUi) {
         els.status.textContent =
-          `Loading ${variableLabel(variable)} for ${TRACT_STATES[stateFips] || "the selected state"} census tracts…`;
+          `Loading ${variableLabel(variable)} for ${TRACT_STATES[stateFips] || "the selected state"} census tracts...`;
       }
       const [metadata, valueRows] = await Promise.all([
         loadTractMetadata(stateFips),
@@ -4048,15 +4279,19 @@ function refreshTractMapValues() {
   const midpoint = cmin + (cmax - cmin) / 2;
 
   tractMap.setPaintProperty("tract-fill", "fill-color", [
-    "interpolate",
-    ["linear"],
-    ["coalesce", ["feature-state", "value"], -1],
-    -1, "#94a3b8",
-    cmin, start,
-    cmin + (cmax - cmin) * 0.25, low,
-    midpoint, middle,
-    cmin + (cmax - cmin) * 0.75, high,
-    cmax, end,
+    "case",
+    ["!=", ["feature-state", "value"], null],
+    [
+      "interpolate",
+      ["linear"],
+      ["feature-state", "value"],
+      cmin, start,
+      cmin + (cmax - cmin) * 0.25, low,
+      midpoint, middle,
+      cmin + (cmax - cmin) * 0.75, high,
+      cmax, end,
+    ],
+    "#94a3b8"
   ]);
 
   updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
@@ -4117,4 +4352,6 @@ if (closeSidebarBtn) {
 if (mobileOverlay) {
   mobileOverlay.addEventListener("click", toggleMobileSidebar);
 }
+
+
 

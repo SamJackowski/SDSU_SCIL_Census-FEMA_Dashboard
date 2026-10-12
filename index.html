@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ACS &amp; FEMA Geographic Dashboard</title>
+  <title>iCHARMrisk</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@latest/dist/maplibre-gl.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-draw@1.5.0/dist/mapbox-gl-draw.css">
@@ -13,8 +13,7 @@
   <div class="app-shell">
     <div id="mobileOverlay" class="mobile-overlay"></div><aside class="sidebar"><button id="closeSidebarBtn" class="close-sidebar-btn" type="button" aria-label="Close filters">&times;</button>
       <div class="brand">
-        <div class="eyebrow">ACS &amp; FEMA Dashboard</div>
-        <h1>Geographic Explorer</h1>
+        <h1 class="icharmrisk-logo">iCHARMrisk</h1>
         <p>Explore Census and FEMA data by geography.</p>
 
         <button
@@ -33,9 +32,8 @@
           <select id="dataModeSelect">
             <option value="annual" selected>Annual Census &amp; FEMA risk data</option>
             <optgroup label="El Niño Winters">
-              <option value="el_nino_2015_16">2015-16 El Niño (Southern US &amp; West Coast)</option>
-              <option value="el_nino_2023_24">2023-24 El Niño (Southern US &amp; West Coast)</option>
-              <option value="fema_pa_2022_23">2022-23 CA Extreme Winter Storms (FEMA PA)</option>
+              <option value="el_nino_2015_16">2015-16 El Niño (NFIP & NOAA Data)</option>
+              <option value="el_nino_2023_24">2023-24 El Niño (NFIP & NOAA Data)</option>
             </optgroup>
             <optgroup label="Hurricanes">
               <option value="sandy">Hurricane Sandy (2012)</option>
@@ -49,16 +47,14 @@
               <option value="ida">Hurricane Ida (2021)</option>
               <option value="ian">Hurricane Ian (2022)</option>
             </optgroup>
-            <optgroup label="Floods">
-              <option value="louisiana_floods_2016">Louisiana Floods (2016)</option>
-              <option value="tennessee_flooding_2021">Tennessee Flooding (2021)</option>
-              <option value="eastern_kentucky_flooding_2022">Eastern Kentucky Flooding (2022)</option>
-            </optgroup>
-            <optgroup label="Wildfire">
-              <option value="camp_fire">Camp Fire (2018)</option>
-            </optgroup>
+              <optgroup label="Floods">
+                <option value="louisiana_floods_2016">Louisiana Floods (2016)</option>
+              </optgroup>
             <optgroup label="National Coverage">
               <option value="nationwide_nfip_policies_2023">Nationwide NFIP Policies (2023)</option>
+            </optgroup>
+            <optgroup label="Earthquakes">
+              <option value="usgs_earthquakes">Live Earthquakes (USGS)</option>
             </optgroup>
           </select>
         </label>
@@ -111,7 +107,7 @@
       </div>
 
       <span id="yearAnimationHelp" class="field-help">
-        Drag the slider or press Play to move through available years.
+        Drag the slider or ▶ Play to move through available years.
       </span>
     </div>
 
