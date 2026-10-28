@@ -4,6 +4,7 @@ import centroid from "https://cdn.jsdelivr.net/npm/@turf/centroid@7.2.0/+esm";
 import booleanPointInPolygon from "https://cdn.jsdelivr.net/npm/@turf/boolean-point-in-polygon@7.2.0/+esm";
 import { parquetReadObjects } from "https://cdn.jsdelivr.net/npm/hyparquet@1.31.3/+esm";
 import { createStatsExplorer } from "./stats-explorer.js";
+import { createRiskCard } from "./risk-card.js";
 
 const pmtilesProtocol = new Protocol();
 maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
@@ -48,6 +49,14 @@ const GEOGRAPHY_CONFIG = {
     geojsonUrl: (stateFips) => `data/by_state/us_tracts_2022_state_${stateFips}.geojson`,
     featureIdKey: "properties.GEOID",
     geoidLength: 11,
+  },
+  global: {
+    label: "Global",
+    plural: "Countries",
+    dataUrl: "data/fao_cereal_yield_by_country.parquet",
+    geojsonUrl: "data/world_countries_geojson.json",
+    featureIdKey: "id",
+    geoidLength: 3,
   },
 };
 
@@ -120,7 +129,71 @@ function eventConfigFromVariable(variable) {
   }) || null;
 }
 
+const GLOBAL_VARIABLES = [
+  "wb_gdp_per_capita",
+  "wb_drinking_water_pct",
+  "wb_fertilizer_kg_per_ha",
+  "wb_electricity_access_pct",
+  "ndgain_index",
+  "ndgain_vulnerability",
+  "ndgain_readiness",
+  "ndgain_food_vulnerability",
+  "ndgain_water_vulnerability",
+  "emdat_disaster_count",
+  "emdat_total_deaths",
+  "emdat_total_affected",
+  "wri_water_stress",
+  "wri_water_stress_pessimistic",
+  "wri_water_stress_optimistic",
+  "wri_water_stress_agri",
+  "wri_water_stress_domestic",
+  "wri_drought_risk",
+  "wri_riverine_flood_risk",
+  "inform_risk",
+  "inform_hazard",
+  "inform_vulnerability",
+  "inform_coping_capacity",
+  "cereal_yield_anomaly_pct",
+  "cereal_yield_kg_per_ha",
+  "cereal_yield_tonnes_per_ha",
+];
+
+function isGlobalVariable(v) {
+  return GLOBAL_VARIABLES.includes(v);
+}
+
+function isZeroIgnoredVariable(variable = state?.variable) {
+  if (!variable) return false;
+  return String(variable).startsWith("emdat_");
+}
+
 const labels = {
+  wb_gdp_per_capita: "GDP per Capita (USD) (World Bank)",
+  wb_drinking_water_pct: "Safely Managed Drinking Water (% pop) (World Bank)",
+  wb_fertilizer_kg_per_ha: "Fertilizer Consumption (kg/ha) (World Bank)",
+  wb_electricity_access_pct: "Access to Electricity (% pop) (World Bank)",
+  ndgain_index: "ND-GAIN Climate Resilience Index (Notre Dame)",
+  ndgain_vulnerability: "Climate Vulnerability Score (Notre Dame)",
+  ndgain_readiness: "Climate Adaptation Readiness (Notre Dame)",
+  ndgain_food_vulnerability: "Food Vulnerability Score (Notre Dame)",
+  ndgain_water_vulnerability: "Water Vulnerability Score (Notre Dame)",
+  emdat_disaster_count: "Disaster Count (CRED EM-DAT)",
+  emdat_total_deaths: "Disaster Deaths (CRED EM-DAT)",
+  emdat_total_affected: "Disaster Affected Population (CRED EM-DAT)",
+  wri_water_stress: "Water Stress Index (WRI)",
+  wri_water_stress_pessimistic: "Water Stress - Pessimistic Scenario (WRI)",
+  wri_water_stress_optimistic: "Water Stress - Optimistic Scenario (WRI)",
+  wri_water_stress_agri: "Agricultural Water Stress (WRI)",
+  wri_water_stress_domestic: "Domestic Water Stress (WRI)",
+  wri_drought_risk: "Drought Risk Index (WRI)",
+  wri_riverine_flood_risk: "Riverine Flood Risk Index (WRI)",
+  inform_risk: "INFORM Risk Index (UN OCHA)",
+  inform_hazard: "Hazard & Exposure Index (UN OCHA)",
+  inform_vulnerability: "Vulnerability Index (UN OCHA)",
+  inform_coping_capacity: "Lack of Coping Capacity Index (UN OCHA)",
+  cereal_yield_anomaly_pct: "Cereal Yield Anomaly (% vs Normal) (UN FAO)",
+  cereal_yield_kg_per_ha: "Cereal Yield (kg/ha) (UN FAO)",
+  cereal_yield_tonnes_per_ha: "Cereal Yield (tonnes/ha) (UN FAO)",
   total_damage: "Total Economic Damage (USD)",
   property_damage: "Property Damage (USD)",
   crop_damage: "Crop Damage (USD)",
@@ -431,6 +504,7 @@ const els = Object.fromEntries(
     "countySearch",
     "countyOptions",
     "countySelect",
+    "countyCardBtn",
     "tractStateSelect",
     "mapChart",
     "tractMap",
@@ -469,6 +543,7 @@ const TRACT_DOWNLOAD_CONCURRENCY = 6;
 let drawnAreaActive = false;
 let drawnGeoids = new Set();
 let rows = [];
+let cachedCountyRows = null;
 let geojson = null;
 let variables = [];
 let state = {
@@ -862,9 +937,171 @@ Object.assign(variableMetadataOverrides, {
     interpretation: "Higher values indicate that a larger share of inspected structures in the tract was destroyed.",
     source: campFireSource,
   },
+  inform_risk: {
+    definition: "INFORM Risk Index is a global, open-source risk assessment for humanitarian crises and disasters, combining Hazard & Exposure, Vulnerability, and Lack of Coping Capacity (scale 0-10).",
+    unit: "Index (0-10)",
+    interpretation: "Higher scores indicate greater overall humanitarian crisis risk (0 = Very Low, 10 = Very High).",
+    source: "UN OCHA (Disaster Risk Management Knowledge Centre / INFORM)",
+  },
+  inform_hazard: {
+    definition: "Hazard & Exposure dimension of the INFORM Risk Index, measuring people and assets exposed to natural and human-induced hazards (scale 0-10).",
+    unit: "Index (0-10)",
+    interpretation: "Higher scores indicate greater physical exposure to natural and human hazards.",
+    source: "UN OCHA (INFORM)",
+  },
+  inform_vulnerability: {
+    definition: "Vulnerability dimension of the INFORM Risk Index, assessing socio-economic vulnerability and vulnerable groups (scale 0-10).",
+    unit: "Index (0-10)",
+    interpretation: "Higher scores indicate greater susceptibility to harm when hazards occur.",
+    source: "UN OCHA (INFORM)",
+  },
+  inform_coping_capacity: {
+    definition: "Lack of Coping Capacity dimension of the INFORM Risk Index, assessing institutional and infrastructure deficits to reduce disaster risk (scale 0-10).",
+    unit: "Index (0-10)",
+    interpretation: "Higher scores indicate weaker coping capacity (greater deficit in disaster risk reduction and governance).",
+    source: "UN OCHA (INFORM)",
+  },
+  cereal_yield_anomaly_pct: {
+    definition: "Percentage departure of national cereal crop yield compared to the country's 2000-2020 normal baseline.",
+    unit: "% vs Normal",
+    interpretation: "Positive values indicate yields above normal; negative values indicate yield shortfalls and agricultural drought impacts.",
+    source: "UN Food and Agriculture Organization (FAO)",
+  },
+  cereal_yield_kg_per_ha: {
+    definition: "National cereal crop yield in kilograms per harvested hectare.",
+    unit: "kg/ha",
+    interpretation: "Higher values indicate greater agricultural productivity.",
+    source: "UN Food and Agriculture Organization (FAO)",
+  },
+  cereal_yield_tonnes_per_ha: {
+    definition: "National cereal crop yield in metric tonnes per harvested hectare.",
+    unit: "tonnes/ha",
+    interpretation: "Higher values indicate greater agricultural productivity.",
+    source: "UN Food and Agriculture Organization (FAO)",
+  },
+  wri_water_stress: {
+    definition: "Ratio of total water withdrawals to annual available renewable water supplies (score 0-5, where >4 indicates Extremely High stress >80%). Baseline (2024) and projected (2030, 2050, 2080) under Business-as-Usual (SSP3-RCP7.0).",
+    unit: "Score (0-5)",
+    interpretation: "Higher scores indicate more severe competition and depletion of renewable water supplies (0 = Low <10%, 4+ = Extremely High >80%).",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_water_stress_pessimistic: {
+    definition: "Projected water stress under the Pessimistic climate scenario (SSP3-RCP8.5, high fossil-fuel emissions and slow economic adaptation).",
+    unit: "Score (0-5)",
+    interpretation: "Higher scores indicate greater water stress under high-emissions climate trajectories.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_water_stress_optimistic: {
+    definition: "Projected water stress under the Optimistic climate scenario (SSP1-RCP2.6, rapid green transition and strong climate mitigation).",
+    unit: "Score (0-5)",
+    interpretation: "Shows projected water stress under ambitious global climate action.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_water_stress_agri: {
+    definition: "Water stress weighted by national irrigation demand. Evaluates water competition and scarcity in primary agricultural zones.",
+    unit: "Score (0-5)",
+    interpretation: "Higher scores indicate greater water vulnerability for irrigated agriculture and food production.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_water_stress_domestic: {
+    definition: "Water stress weighted by municipal and domestic water demand. Evaluates water supply stress on urban and residential populations.",
+    unit: "Score (0-5)",
+    interpretation: "Higher scores indicate greater pressure on public water utilities and household drinking supplies.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_drought_risk: {
+    definition: "Aqueduct Drought Risk Index assessing drought hazard exposure and vulnerability based on historical agricultural and socio-economic deficit patterns.",
+    unit: "Index (0-5)",
+    interpretation: "Higher values indicate greater susceptibility to adverse drought impacts.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  wri_riverine_flood_risk: {
+    definition: "Aqueduct Riverine Flood Risk Index measuring the percentage of population annually exposed to river flooding.",
+    unit: "Index (0-5)",
+    interpretation: "Higher values indicate more population and assets located within active river floodplains.",
+    source: "World Resources Institute (WRI Aqueduct 4.0)",
+  },
+  emdat_disaster_count: {
+    definition: "Number of recorded natural disaster events meeting EM-DAT entry criteria (10+ deaths, 100+ affected, state of emergency declared, or international appeal).",
+    unit: "Disasters",
+    interpretation: "Higher counts indicate more frequent disaster occurrences in that country during the year.",
+    source: "CRED EM-DAT",
+  },
+  emdat_total_deaths: {
+    definition: "Total confirmed fatalities and missing persons attributed directly to natural disasters in the year.",
+    unit: "People",
+    interpretation: "Higher values indicate more lethal disaster events.",
+    source: "CRED EM-DAT",
+  },
+  emdat_total_affected: {
+    definition: "Total number of people injured, left homeless, or requiring immediate emergency assistance following natural disasters in the year.",
+    unit: "People",
+    interpretation: "Higher numbers indicate greater humanitarian disruption across the national population.",
+    source: "CRED EM-DAT",
+  },
+  ndgain_index: {
+    definition: "Notre Dame Global Adaptation Initiative (ND-GAIN) Country Index summarizing a country's overall vulnerability to climate disruptions and its readiness to leverage adaptation investment.",
+    unit: "Index (0-100)",
+    interpretation: "Higher values indicate greater national climate resilience and adaptation capacity.",
+    source: "University of Notre Dame (ND-GAIN)",
+  },
+  ndgain_vulnerability: {
+    definition: "Overall climate vulnerability measuring exposure, sensitivity, and lack of adaptive capacity across six life-supporting sectors: food, water, health, ecosystem services, human habitat, and infrastructure.",
+    unit: "Score (0-1)",
+    interpretation: "Higher values indicate greater physical and socio-economic susceptibility to adverse climate shocks.",
+    source: "University of Notre Dame (ND-GAIN)",
+  },
+  ndgain_readiness: {
+    definition: "Overall climate adaptation readiness measuring a country's ability to attract and effectively deploy adaptation investments across economic, governance, and social pillars.",
+    unit: "Score (0-1)",
+    interpretation: "Higher values indicate stronger institutional capacity and investment readiness to absorb adaptation financing.",
+    source: "University of Notre Dame (ND-GAIN)",
+  },
+  ndgain_food_vulnerability: {
+    definition: "Vulnerability of food supply and agricultural systems, measuring projected yield changes, agricultural dependency, and food import reliance.",
+    unit: "Score (0-1)",
+    interpretation: "Higher values indicate greater vulnerability to climate-induced food shortfalls and agricultural instability.",
+    source: "University of Notre Dame (ND-GAIN)",
+  },
+  ndgain_water_vulnerability: {
+    definition: "Vulnerability of freshwater resources, measuring projected water runoff changes, access to reliable drinking water, and dam/groundwater storage capacity.",
+    unit: "Score (0-1)",
+    interpretation: "Higher values indicate greater susceptibility to freshwater deficits, drought, and water supply disruption.",
+    source: "University of Notre Dame (ND-GAIN)",
+  },
+  wb_gdp_per_capita: {
+    definition: "Gross domestic product divided by midyear population in current U.S. dollars. Serves as a primary metric for national economic resilience and disaster absorption capacity.",
+    unit: "USD",
+    interpretation: "Higher values indicate greater financial resources and buffer capacity to recover from climate shocks and natural disasters.",
+    source: "World Bank (World Development Indicators)",
+  },
+  wb_drinking_water_pct: {
+    definition: "Percentage of the national population using safely managed drinking water services located on premises, available when needed, and free from contamination.",
+    unit: "Percent",
+    interpretation: "Higher values indicate stronger municipal water infrastructure and resilience against water-borne disease during droughts and floods.",
+    source: "World Bank (WDI / WHO-UNICEF JMP)",
+  },
+  wb_fertilizer_kg_per_ha: {
+    definition: "Total fertilizer consumption (nitrogenous, potash, and phosphate nutrients) in kilograms per hectare of arable land.",
+    unit: "kg/ha",
+    interpretation: "Higher values reflect intensive agricultural inputs, fertigation, and high-productivity farming technologies.",
+    source: "World Bank (WDI / FAO)",
+  },
+  wb_electricity_access_pct: {
+    definition: "Percentage of the national population with access to electricity, representing a critical baseline for emergency services, water pumping, and healthcare infrastructure.",
+    unit: "Percent",
+    interpretation: "Higher percentages indicate greater modern infrastructure coverage and disaster response capability.",
+    source: "World Bank (WDI / IEA)",
+  },
 });
 
 const VARIABLE_GROUP_ORDER = [
+  "World Bank - Development & Resilience",
+  "Notre Dame - ND-GAIN Index",
+  "CRED EM-DAT - Disaster Impact",
+  "WRI - Water Risk",
+  "UN OCHA - INFORM Risk",
+  "UN FAO - Food & Agriculture",
   "Specific Event - Hurricane Sandy",
   "Specific Event - Hurricane Matthew",
   "Specific Event - Hurricane Harvey",
@@ -906,6 +1143,34 @@ const VARIABLE_GROUP_ORDER = [
 
 function variableGroup(variable) {
   const name = String(variable).toLowerCase();
+
+  if (name.startsWith("wb_")) {
+    return "World Bank - Development & Resilience";
+  }
+
+  if (name.startsWith("ndgain_")) {
+    return "Notre Dame - ND-GAIN Index";
+  }
+
+  if (name.startsWith("emdat_")) {
+    return "CRED EM-DAT - Disaster Impact";
+  }
+
+  if (name.startsWith("wri_")) {
+    return "WRI - Water Risk";
+  }
+
+  if (name.startsWith("inform_")) {
+    return "UN OCHA - INFORM Risk";
+  }
+
+  if (name.startsWith("fao_") || /cereal_yield/.test(name)) {
+    return "UN FAO - Food & Agriculture";
+  }
+
+  if (isGlobalVariable(variable) || name.startsWith("global_")) {
+    return "World Bank - Development & Resilience";
+  }
 
   const event = eventConfigFromVariable(name);
   if (event) return `Specific Event - ${event.name}`;
@@ -988,9 +1253,17 @@ function variableGroup(variable) {
 
 
 function setGroupedVariableOptions(element, values, selected) {
+  let effectiveValues = values;
+  if (element === els.variableSelect) {
+    if (state.dataMode === "global" || state.geography === "global") {
+      effectiveValues = GLOBAL_VARIABLES;
+    } else {
+      effectiveValues = values.filter((v) => !isGlobalVariable(v));
+    }
+  }
   const groups = new Map(VARIABLE_GROUP_ORDER.map((group) => [group, []]));
 
-  values.forEach((variable) => {
+  effectiveValues.forEach((variable) => {
     const group = variableGroup(variable);
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(variable);
@@ -999,9 +1272,14 @@ function setGroupedVariableOptions(element, values, selected) {
   element.innerHTML = VARIABLE_GROUP_ORDER
     .filter((group) => groups.get(group)?.length)
     .map((group) => {
-      const options = groups
-        .get(group)
-        .sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)))
+      const varList = groups.get(group);
+      if (state.geography === "global" || state.dataMode === "global") {
+        varList.sort((a, b) => GLOBAL_VARIABLES.indexOf(a) - GLOBAL_VARIABLES.indexOf(b));
+      } else {
+        varList.sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)));
+      }
+
+      const options = varList
         .map((variable) => {
           const safeValue = String(variable).replaceAll('"', "&quot;");
           const isSelected = variable === selected ? "selected" : "";
@@ -1057,11 +1335,12 @@ const stddev = (values) => {
 
 function valueKind(variable) {
   if (variable === "median_year_built") return "year";
+  if (/^inform_|^wri_|^ndgain_/.test(variable)) return "score";
   if (/rate|pct|percent/.test(variable)) return "percent";
-  if (/income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim|amount|share/.test(variable)) {
+  if (/gdp|income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim|amount|share|damage/.test(variable)) {
     return "dollar";
   }
-  if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count|structures|assessment_locations$|assessments_110_plus_mph$/.test(variable)) {
+  if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count|structures|deaths|affected|disaster_count|assessment_locations$|assessments_110_plus_mph$/.test(variable)) {
     return "count";
   }
   if (/score|index|frequency|percentile|loss_rate/.test(variable)) return "score";
@@ -1071,6 +1350,10 @@ function valueKind(variable) {
 function formatValue(value, variable) {
   const number = toNumber(value);
   if (!Number.isFinite(number)) return "-";
+
+  if (variable === "wb_fertilizer_kg_per_ha") {
+    return `${number.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg/ha`;
+  }
 
   const kind = valueKind(variable);
   if (kind === "year") return String(Math.round(number));
@@ -1088,6 +1371,18 @@ function formatValue(value, variable) {
     return number.toLocaleString(undefined, { maximumFractionDigits: 0 });
   }
   if (kind === "score") {
+    if (/^inform_/.test(variable)) {
+      return number.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+    if (/^wri_/.test(variable)) {
+      return number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (/^ndgain_index/.test(variable)) {
+      return number.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+    if (/^ndgain_/.test(variable)) {
+      return number.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    }
     return number.toLocaleString(undefined, { maximumFractionDigits: 3 });
   }
   return number.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -1107,6 +1402,17 @@ function normalizeRow(row) {
     config.geoidLength,
     "0",
   );
+
+  if (state.geography === "global") {
+    return {
+      ...row,
+      year: toNumber(row.year),
+      GEOID: String(toPlainValue(row.GEOID) ?? row.ISO3 ?? "").toUpperCase(),
+      country_name: row.country_name || row.NAME || "Unknown country",
+      county_name: row.country_name || row.NAME || "Unknown country",
+      state_name: row.state_name || row.continent || "World",
+    };
+  }
 
   if (state.geography === "state") {
     return {
@@ -1285,7 +1591,8 @@ function syncYearAnimationControls({
   ) {
     state.year = previousYear;
   } else {
-    state.year = availableYears.at(-1);
+    const historicalYears = availableYears.filter((y) => y <= 2025);
+    state.year = historicalYears.length ? historicalYears.at(-1) : availableYears[0];
   }
 
   const index = currentYearIndex();
@@ -1471,11 +1778,41 @@ function setSelectedStates(nextStates) {
   syncCountyOptions();
 }
 
+function syncGeographySelectLocking() {
+  const geoSelect = els.geographySelect;
+  if (!geoSelect) return;
+
+  const isGlobalMode = state.dataMode === "global";
+  const countyOpt = geoSelect.querySelector('option[value="county"]');
+  const stateOpt = geoSelect.querySelector('option[value="state"]');
+  const tractOpt = geoSelect.querySelector('option[value="tract"]');
+  const globalOpt = geoSelect.querySelector('option[value="global"]');
+
+  if (isGlobalMode) {
+    if (countyOpt) countyOpt.disabled = true;
+    if (stateOpt) stateOpt.disabled = true;
+    if (tractOpt) tractOpt.disabled = true;
+    if (globalOpt) globalOpt.disabled = false;
+    geoSelect.value = "global";
+    state.geography = "global";
+  } else {
+    if (globalOpt) globalOpt.disabled = true;
+    if (countyOpt) countyOpt.disabled = false;
+    if (stateOpt) stateOpt.disabled = false;
+    if (tractOpt) tractOpt.disabled = false;
+    if (state.geography === "global") {
+      state.geography = "county";
+      geoSelect.value = "county";
+    }
+  }
+}
+
 function syncGeographyControls() {
+  syncGeographySelectLocking();
   const countyField = document.querySelector(".county-filter-field");
   const stateField = document.querySelector(".state-filter-field");
   const tractStateField = document.querySelector(".tract-state-field");
-  const isDetailGeography = state.geography !== "state";
+  const isDetailGeography = state.geography !== "state" && state.geography !== "global";
 
   tractStateField.hidden = true;
   stateField.hidden = false;
@@ -1605,6 +1942,16 @@ function syncCountyOptions() {
       : countyMap.get(state.countyKey) || "All counties";
 
   els.countyPickerText.textContent = selectedLabel;
+
+  if (els.countyCardBtn) {
+    if (state.geography === "county" && state.countyKey && state.countyKey !== "All counties") {
+      els.countyCardBtn.classList.remove("hidden");
+      els.countyCardBtn.removeAttribute("hidden");
+    } else {
+      els.countyCardBtn.classList.add("hidden");
+      els.countyCardBtn.setAttribute("hidden", "");
+    }
+  }
   els.countySearch.value = "";
 
   filterCountyOptions("");
@@ -2052,7 +2399,7 @@ function renderTrend() {
       mode: "lines+markers",
       x: years,
       y: years.map((year) => mean(byYear.get(year))),
-      name: selectedStates ? `${selectedStates.length} selected states` : "United States",
+      name: selectedStates ? `${selectedStates.length} selected ${state.geography === "global" ? "regions" : "states"}` : (state.geography === "global" ? "Worldwide" : "United States"),
       hovertemplate: "Year: %{x}<br>Average: %{y}<extra></extra>",
     });
   }
@@ -2148,33 +2495,44 @@ function renderTrend() {
 }
 
 function tableHtml(data) {
-  if (state.geography === "state") {
-    return `<table class="dash-table"><thead><tr><th>State</th><th>Value</th></tr></thead><tbody>${data
+  if (state.geography === "global") {
+    return `<table class="dash-table clickable-rows"><thead><tr><th>Country</th><th>Continent</th><th>Value</th><th></th></tr></thead><tbody>${data
       .map(
         (row) =>
-          `<tr><td>${escapeHtml(row.state_name)}</td><td>${formatValue(
+          `<tr data-geoid="${escapeHtml(row.GEOID)}" title="Click to view Risk Card"><td><strong>${escapeHtml(row.country_name || row.NAME || row.GEOID)}</strong></td><td>${escapeHtml(
+            row.state_name || "World",
+          )}</td><td>${formatValue(row.value, state.variable)}</td><td style="text-align:right;"><span class="row-card-pill">📋 Risk Card</span></td></tr>`,
+      )
+      .join("")}</tbody></table>`;
+  }
+
+  if (state.geography === "state") {
+    return `<table class="dash-table clickable-rows"><thead><tr><th>State</th><th>Value</th><th></th></tr></thead><tbody>${data
+      .map(
+        (row) =>
+          `<tr data-geoid="${escapeHtml(row.GEOID)}" title="Click to view Risk Card"><td><strong>${escapeHtml(row.state_name)}</strong></td><td>${formatValue(
             row.value,
             state.variable,
-          )}</td></tr>`,
+          )}</td><td style="text-align:right;"><span class="row-card-pill">📋 Risk Card</span></td></tr>`,
       )
       .join("")}</tbody></table>`;
   }
 
   if (state.geography === "tract") {
-    return `<table class="dash-table"><thead><tr><th>Census Tract</th><th>County</th><th>State</th><th>Value</th></tr></thead><tbody>${data
+    return `<table class="dash-table clickable-rows"><thead><tr><th>Census Tract</th><th>County</th><th>State</th><th>Value</th><th></th></tr></thead><tbody>${data
       .map(
         (row) =>
-          `<tr><td>${escapeHtml(row.tract_name)}</td><td>${escapeHtml(row.county_name)}</td><td>${escapeHtml(row.state_name)}</td><td>${formatValue(row.value, state.variable)}</td></tr>`,
+          `<tr data-geoid="${escapeHtml(row.GEOID)}" title="Click to view Underwriting Card"><td><strong>${escapeHtml(row.tract_name)}</strong></td><td>${escapeHtml(row.county_name)}</td><td>${escapeHtml(row.state_name)}</td><td>${formatValue(row.value, state.variable)}</td><td style="text-align:right;"><span class="row-card-pill">📋 Risk Card</span></td></tr>`,
       )
       .join("")}</tbody></table>`;
   }
 
-  return `<table class="dash-table"><thead><tr><th>County</th><th>State</th><th>Value</th></tr></thead><tbody>${data
+  return `<table class="dash-table clickable-rows"><thead><tr><th>County</th><th>State</th><th>Value</th><th></th></tr></thead><tbody>${data
     .map(
       (row) =>
-        `<tr><td>${escapeHtml(row.county_name)}</td><td>${escapeHtml(
+        `<tr data-geoid="${escapeHtml(row.GEOID)}" title="Click to view Underwriting Card"><td><strong>${escapeHtml(row.county_name)}</strong></td><td>${escapeHtml(
           row.state_name,
-        )}</td><td>${formatValue(row.value, state.variable)}</td></tr>`,
+        )}</td><td>${formatValue(row.value, state.variable)}</td><td style="text-align:right;"><span class="row-card-pill">📋 Risk Card</span></td></tr>`,
     )
     .join("")}</tbody></table>`;
 }
@@ -2671,7 +3029,10 @@ function mapColorRange() {
     includeCounty: true,
   });
 
-  const values = allYearData.map((row) => row.value);
+  let values = allYearData.map((row) => row.value);
+  if (isZeroIgnoredVariable(state.variable)) {
+    values = values.filter((v) => Number.isFinite(v) && v > 0);
+  }
 
   return colorRange(values, state.scaleMode);
 }
@@ -2692,8 +3053,8 @@ function render() {
     : selectedStates
       ? selectedStates.length === 1
         ? selectedStates[0]
-        : `${selectedStates.length} selected states`
-      : "United States";
+        : `${selectedStates.length} selected ${state.geography === "global" ? "regions" : "states"}`
+      : (state.geography === "global" ? "Worldwide" : "United States");
 
   els.dashboardTitle.textContent = `${variableLabel(state.variable)} in ${area} (${state.year})`;
   els.dashboardMeta.innerHTML =
@@ -2752,8 +3113,9 @@ function render() {
     return;
   }
 
-  els.status.textContent =
-    `Showing ${data.length.toLocaleString()} ${geographyLabel().toLowerCase()} records.`;
+  els.status.textContent = state.geography === "global"
+    ? `Showing ${data.length.toLocaleString()} country records.`
+    : `Showing ${data.length.toLocaleString()} ${geographyLabel().toLowerCase()} records.`;
   if (state.activeTab === "map") renderMap(data);
   if (state.activeTab === "trend") renderTrend();
   if (state.activeTab === "stats") renderStats(data);
@@ -2772,6 +3134,19 @@ function readForm() {
   state.scaleMode = els.scaleModeSelect.value;
 
   if (state.variable !== previousVariable) {
+    if (state.geography === "tract") {
+      activeNationwideTractVariable = null;
+      tractRowsByState.clear();
+      Object.keys(TRACT_STATES).forEach((stateFips) => {
+        const key = `${stateFips}|${state.variable}`;
+        if (tractVariableRowsCache.has(key)) {
+          const cached = tractVariableRowsCache.get(key);
+          if (cached?.length && (state.variable in cached[0])) {
+            tractRowsByState.set(stateFips, cached);
+          }
+        }
+      });
+    }
     syncYearAnimationControls({
       preserveYear: true,
     });
@@ -2937,6 +3312,7 @@ async function loadSpecificEvent(eventId) {
 
   els.dataModeSelect.value = eventId;
   els.geographySelect.value = state.geography;
+  syncGeographySelectLocking();
   els.geographySelect.disabled = true;
   const eventLoadingLabel = event.loadingLabel || (event.kind === "nfip" ? "NFIP claims" : (event.kind === "fema_pa" ? "Public Assistance" : "damage inspections"));
   els.status.textContent = `Loading ${event.name} ${eventLoadingLabel} by ...`;
@@ -3136,7 +3512,32 @@ async function loadGeography({ preserveVariable = true } = {}) {
     state.selectedStates = [];
     state.countyKey = "All counties";
     state.activeTab = "map";
+    activeNationwideTractVariable = null;
+    tractRowsByState.clear();
+
+    // Ensure we have county-level reference rows for available years and variable list
+    if (!cachedCountyRows || !rows.length || !rows[0]?.total_population) {
+      if (!cachedCountyRows) {
+        const parquetRows = await loadParquet("data/acs_county_year_fema_flood_risk.parquet");
+        cachedCountyRows = parquetRows.map(normalizeRow);
+      }
+      rows = cachedCountyRows;
+    }
+
+    variables = Object.keys(labels)
+      .filter((column) => Object.prototype.hasOwnProperty.call(rows[0], column))
+      .filter((column) => !isGlobalVariable(column))
+      .filter((column) => rows.some((row) => validNumber(row[column])))
+      .sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)));
+
+    if (isGlobalVariable(state.variable) || !variables.includes(state.variable) || !state.variable) {
+      state.variable = "total_population";
+    }
+
     await loadCountyLookup();
+    setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+    syncAnalysisVariableOptions();
+    syncYearAnimationControls({ preserveYear: true });
     setMultiSelectOptions(
       els.stateSelect,
       Object.values(TRACT_STATES).sort((a, b) => a.localeCompare(b)),
@@ -3174,17 +3575,25 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
   geojson = await geoResponse.json();
   rows = parquetRows.map(normalizeRow);
+  if (state.geography === "county") {
+    cachedCountyRows = rows;
+  }
 
   if (!rows.length) {
     throw new Error(`${config.label} Parquet loaded but contained no rows.`);
   }
 
-  variables = Object.keys(labels)
-    .filter((column) =>
-      Object.prototype.hasOwnProperty.call(rows[0], column),
-    )
-    .filter((column) => rows.some((row) => validNumber(row[column])))
-    .sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)));
+  if (state.geography === "global") {
+    variables = GLOBAL_VARIABLES.filter((column) =>
+      Object.prototype.hasOwnProperty.call(rows[0], column) || true
+    );
+  } else {
+    variables = Object.keys(labels)
+      .filter((column) => Object.prototype.hasOwnProperty.call(rows[0], column))
+      .filter((column) => !isGlobalVariable(column))
+      .filter((column) => rows.some((row) => validNumber(row[column])))
+      .sort((a, b) => variableLabel(a).localeCompare(variableLabel(b)));
+  }
 
   if (!variables.length) {
     throw new Error(
@@ -3195,9 +3604,9 @@ async function loadGeography({ preserveVariable = true } = {}) {
   if (preserveVariable && variables.includes(previousVariable)) {
     state.variable = previousVariable;
   } else {
-    state.variable = variables.includes("total_population")
-      ? "total_population"
-      : variables[0];
+    state.variable = state.geography === "global"
+      ? (variables.includes("ndgain_index") ? "ndgain_index" : (variables.includes("inform_risk") ? "inform_risk" : variables[0]))
+      : (variables.includes("total_population") ? "total_population" : variables[0]);
   }
 
   state.selectedStates = [];
@@ -3246,6 +3655,24 @@ const statsExplorer = createStatsExplorer({
   },
 });
 
+const riskCard = createRiskCard({
+  getState: () => state,
+  getRows: () => rows,
+  getCachedCountyRows: () => cachedCountyRows,
+  getCountyLookup: async () => {
+    await loadCountyLookup();
+    return countyLookup;
+  },
+  loadParquet,
+  formatValue,
+  variableLabel,
+  escapeHtml,
+  isDarkMode,
+  tractStates: TRACT_STATES,
+  tractVariableRowsCache,
+  adminMapRows,
+});
+
 els.statsViewTabs.addEventListener("click", (event) => {
   const button = event.target.closest("[data-stats-view]");
   if (!button) return;
@@ -3269,6 +3696,7 @@ async function init() {
     state.dataMode = "annual";
     els.dataModeSelect.value = state.dataMode;
     els.geographySelect.value = state.geography;
+    syncGeographySelectLocking();
     state.colorScale = "Viridis";
     state.scaleMode = "robust";
     state.activeTab = "map";
@@ -3388,22 +3816,44 @@ async function highlightTractCounty(countyGeoid) {
 
 els.dataModeSelect.addEventListener("change", async () => {
   try {
-    if (EVENT_CONFIGS[els.dataModeSelect.value]) {
-      await loadSpecificEvent(els.dataModeSelect.value);
+    const selectedMode = els.dataModeSelect.value;
+    if (EVENT_CONFIGS[selectedMode]) {
+      await loadSpecificEvent(selectedMode);
+      syncGeographySelectLocking();
       return;
     }
 
     stopYearAnimation();
+
+    if (selectedMode === "global") {
+      state.dataMode = "global";
+      state.geography = "global";
+      els.geographySelect.disabled = false;
+      syncGeographySelectLocking();
+      tractRowsByState.clear();
+      activeNationwideTractVariable = null;
+      tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
+      if (!isGlobalVariable(state.variable)) {
+        state.variable = "ndgain_index";
+      }
+      await loadGeography({ preserveVariable: true });
+      return;
+    }
+
+    // Default to "annual" Census & FEMA mode
     state.dataMode = "annual";
     state.geography = "county";
     state.selectedStates = [];
     state.countyKey = "All counties";
     els.dataModeSelect.value = "annual";
     els.geographySelect.disabled = false;
-    els.geographySelect.value = "county";
+    syncGeographySelectLocking();
     tractRowsByState.clear();
     activeNationwideTractVariable = null;
     tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
+    if (isGlobalVariable(state.variable) || !state.variable) {
+      state.variable = "total_population";
+    }
     await loadGeography({ preserveVariable: false });
   } catch (error) {
     els.status.innerHTML =
@@ -3413,23 +3863,48 @@ els.dataModeSelect.addEventListener("change", async () => {
 });
 
 els.variableSelect.addEventListener("change", async () => {
-  const isNoaa = ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"].includes(els.variableSelect.value);
-  const isNfip = els.variableSelect.value && els.variableSelect.value.includes("nfip");
+  const selectedVar = els.variableSelect.value;
+
+  const isNoaa = ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"].includes(selectedVar);
+  const isNfip = selectedVar && selectedVar.includes("nfip");
   
   if (els.dataModeSelect.value === "el_nino_2015_16" || els.dataModeSelect.value === "el_nino_2023_24") {
     if ((isNoaa && state.geography !== "county") || (isNfip && state.geography === "county")) {
       // Re-load the specific event to correctly map the data onto the right geography
       await loadSpecificEvent(els.dataModeSelect.value);
+      return;
     }
   }
+
+  state.variable = selectedVar;
+  syncYearAnimationControls({ preserveYear: true });
+  render();
 });
 
 els.geographySelect.addEventListener("change", async () => {
   try {
     stopYearAnimation();
-    state.geography = els.geographySelect.value;
+    const newGeography = els.geographySelect.value;
+
+    // Safety checks for cross-mode geography selection
+    if (state.dataMode === "global" && newGeography !== "global") {
+      syncGeographySelectLocking();
+      return;
+    }
+    if (state.dataMode !== "global" && newGeography === "global") {
+      syncGeographySelectLocking();
+      return;
+    }
+
+    state.geography = newGeography;
     state.selectedStates = [];
     state.countyKey = "All counties";
+
+    if (state.geography === "global" && !isGlobalVariable(state.variable)) {
+      state.variable = "ndgain_index";
+    } else if (state.geography !== "global" && isGlobalVariable(state.variable)) {
+      state.variable = "total_population";
+    }
 
     await loadGeography({ preserveVariable: true });
   } catch (error) {
@@ -3455,6 +3930,21 @@ els.filters.addEventListener("submit", (event) => {
     state.countyKey = els.countySelect.value;
   }
   render();
+});
+
+[els.topTable, els.bottomTable].forEach((table) => {
+  table.addEventListener("click", (event) => {
+    const tr = event.target.closest("tr[data-geoid]");
+    if (tr && tr.dataset.geoid) {
+      riskCard.open(tr.dataset.geoid, state.geography);
+    }
+  });
+});
+
+els.countyCardBtn?.addEventListener("click", () => {
+  if (state.countyKey && state.countyKey !== "All counties") {
+    riskCard.open(state.countyKey, "county");
+  }
 });
 
 els.yearSlider.addEventListener("input", () => {
@@ -3541,9 +4031,15 @@ els.dashboardTabs.addEventListener("click", (event) => {
 els.resetButton.addEventListener("click", () => {
   stopYearAnimation();
 
-  state.variable = variables.includes("total_population")
-    ? "total_population"
-    : variables[0];
+  if (state.geography === "global") {
+    state.variable = variables.includes("ndgain_index")
+      ? "ndgain_index"
+      : (variables.includes("inform_risk") ? "inform_risk" : variables[0]);
+  } else {
+    state.variable = variables.includes("total_population")
+      ? "total_population"
+      : variables[0];
+  }
 
   state.selectedStates = [];
   state.countyKey = "All counties";
@@ -3772,6 +4268,7 @@ function initTractMap() {
     tractMap.addSource("admin-areas", {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
+      promoteId: "id",
     });
 
     tractMap.addLayer({
@@ -3822,6 +4319,28 @@ function initTractMap() {
       tractMap.getCanvas().style.cursor = "pointer";
     });
 
+    tractMap.on("click", "admin-fill", (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const featureId = feature
+        ? (state.geography === "global"
+            ? String(feature.id || feature.properties?.ISO_A3 || "").toUpperCase()
+            : String(feature.id).padStart(state.geography === "state" ? 2 : 5, "0"))
+        : "";
+      if (featureId) {
+        riskCard.open(featureId, state.geography);
+      }
+    });
+
+    tractMap.on("click", "tract-fill", (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
+      const geoid = String(feature.id).padStart(11, "0");
+      if (geoid) {
+        riskCard.open(geoid, "tract");
+      }
+    });
+
     tractMap.on("mouseleave", "admin-fill", () => {
       tractMap.getCanvas().style.cursor = "";
       tractHoverPopup?.remove();
@@ -3832,7 +4351,9 @@ function initTractMap() {
       // MapLibre may expose numeric GeoJSON ids without their leading zero.
       // Normalize them back to their state/county FIPS width before lookup.
       const featureId = feature
-        ? String(feature.id).padStart(state.geography === "state" ? 2 : 5, "0")
+        ? (state.geography === "global"
+            ? String(feature.id || feature.properties?.ISO_A3 || "").toUpperCase()
+            : String(feature.id).padStart(state.geography === "state" ? 2 : 5, "0"))
         : "";
       const row = adminMapRows.get(featureId);
       if (!row) return;
@@ -3847,7 +4368,9 @@ function initTractMap() {
 
       const areaName = state.geography === "state"
         ? row.state_name
-        : `${row.county_name}, ${row.state_name}`;
+        : (state.geography === "global"
+            ? (row.country_name || row.NAME || row.GEOID)
+            : `${row.county_name}, ${row.state_name}`);
 
       tractHoverPopup
         .setLngLat(event.lngLat)
@@ -3855,7 +4378,8 @@ function initTractMap() {
           `<strong>${escapeHtml(areaName)}</strong><br>` +
           `<strong>Year:</strong> ${escapeHtml(row.year)}<br>` +
           `<strong>${escapeHtml(variableLabel(state.variable))}:</strong> ` +
-          `${escapeHtml(formatValue(row.value, state.variable))}`,
+          `${escapeHtml(formatValue(row.value, state.variable))}` +
+          `<div style="margin-top:6px;font-size:11px;color:#2563eb;font-weight:700;">Click to view Underwriting Data Card &rarr;</div>`,
         )
         .addTo(tractMap);
 
@@ -3887,9 +4411,10 @@ function initTractMap() {
       tractHoverPopup
         .setLngLat(event.lngLat)
         .setHTML(
-          `<strong>GEOID:</strong> ${escapeHtml(geoid)}<br>` +
+          `<strong>Census Tract:</strong> ${escapeHtml(geoid)}<br>` +
           `<strong>${escapeHtml(variableLabel(state.variable))}:</strong> ` +
-          `${Number.isFinite(value) ? escapeHtml(formatValue(value, state.variable)) : escapeHtml(tractNoDataLabel())}`,
+          `${Number.isFinite(value) ? escapeHtml(formatValue(value, state.variable)) : escapeHtml(tractNoDataLabel())}` +
+          `<div style="margin-top:6px;font-size:11px;color:#2563eb;font-weight:700;">Click to view Underwriting Data Card &rarr;</div>`,
         )
         .addTo(tractMap);
 
@@ -4000,6 +4525,10 @@ function setMapLayerVisibility(showTracts) {
 }
 
 function adminFeatureId(feature) {
+  if (state.geography === "global") {
+    const rawId = feature.properties?.ISO_A3 ?? feature.properties?.iso_a3 ?? feature.id ?? "";
+    return String(rawId).toUpperCase();
+  }
   const rawId = feature.properties?.GEOID ?? feature.id ?? "";
   return String(rawId).padStart(state.geography === "state" ? 2 : 5, "0");
 }
@@ -4031,12 +4560,23 @@ function renderAdminMap(data) {
     features: [],
   });
 
+  const valueMap = new Map(data.map((row) => [String(row.GEOID), row.value]));
+
   const mapGeojson = {
     ...geojson,
-    features: geojson.features.map((feature) => ({
-      ...feature,
-      id: adminFeatureId(feature),
-    })),
+    features: geojson.features.map((feature) => {
+      const fid = adminFeatureId(feature);
+      const val = valueMap.has(fid) ? valueMap.get(fid) : null;
+      return {
+        ...feature,
+        id: fid,
+        properties: {
+          ...feature.properties,
+          id: fid,
+          value: val,
+        },
+      };
+    }),
   };
 
   source.setData(mapGeojson);
@@ -4059,21 +4599,44 @@ function renderAdminMap(data) {
   const [start, low, middle, high, end] = tractColorRamp();
   const midpoint = cmin + (cmax - cmin) / 2;
 
-  tractMap.setPaintProperty("admin-fill", "fill-color", [
-    "case",
-    ["!=", ["feature-state", "value"], null],
-    [
-      "interpolate",
-      ["linear"],
-      ["feature-state", "value"],
-      cmin, start,
-      cmin + (cmax - cmin) * 0.25, low,
-      midpoint, middle,
-      cmin + (cmax - cmin) * 0.75, high,
-      cmax, end,
-    ],
-    "#94a3b8"
-  ]);
+  const valExpr = ["coalesce", ["feature-state", "value"], ["get", "value"]];
+  const filterPositive = isZeroIgnoredVariable(state.variable);
+
+  const fillExpression = filterPositive
+    ? [
+        "case",
+        ["==", valExpr, null],
+        "#94a3b8",
+        ["<=", valExpr, 0],
+        "#94a3b8",
+        [
+          "interpolate",
+          ["linear"],
+          valExpr,
+          cmin, start,
+          cmin + (cmax - cmin) * 0.25, low,
+          midpoint, middle,
+          cmin + (cmax - cmin) * 0.75, high,
+          cmax, end,
+        ],
+      ]
+    : [
+        "case",
+        ["!=", valExpr, null],
+        [
+          "interpolate",
+          ["linear"],
+          valExpr,
+          cmin, start,
+          cmin + (cmax - cmin) * 0.25, low,
+          midpoint, middle,
+          cmin + (cmax - cmin) * 0.75, high,
+          cmax, end,
+        ],
+        "#94a3b8",
+      ];
+
+  tractMap.setPaintProperty("admin-fill", "fill-color", fillExpression);
 
   addTractLegend();
   updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
@@ -4096,7 +4659,11 @@ function renderAdminMap(data) {
         tractMap.fitBounds(bounds, { padding: MAP_FIT_PADDING, maxZoom: 9, duration: 650 });
       }
     } else {
-      tractMap.jumpTo({ center: DEFAULT_MAP_CENTER, zoom: 3.5 });
+      if (state.geography === "global") {
+        tractMap.jumpTo({ center: [10, 20], zoom: 1.35 });
+      } else {
+        tractMap.jumpTo({ center: DEFAULT_MAP_CENTER, zoom: 3.5 });
+      }
     }
     lastAdminFitKey = fitKey;
   }
@@ -4117,6 +4684,7 @@ async function loadVisibleTractStateData() {
   if (state.geography !== "tract" || currentEventConfig()) return;
 
   const variable = state.variable;
+  if (!variable || isGlobalVariable(variable)) return;
   if (activeNationwideTractVariable === variable) return;
   if (nationwideTractLoadPromises.has(variable)) {
     return nationwideTractLoadPromises.get(variable);
@@ -4131,6 +4699,9 @@ async function loadVisibleTractStateData() {
       start < stateFipsList.length;
       start += TRACT_DOWNLOAD_CONCURRENCY
     ) {
+      if (state.variable !== variable || state.geography !== "tract") {
+        return;
+      }
       const batch = stateFipsList.slice(
         start,
         start + TRACT_DOWNLOAD_CONCURRENCY,
@@ -4138,6 +4709,9 @@ async function loadVisibleTractStateData() {
       await Promise.all(batch.map((stateFips) =>
         loadTractStateData(stateFips, { variable, updateUi: false })
       ));
+      if (state.variable !== variable || state.geography !== "tract") {
+        return;
+      }
       completed += batch.length;
 
       if (
@@ -4174,12 +4748,16 @@ async function loadTractStateData(
   { variable = state.variable, updateUi = true } = {},
 ) {
   if (currentEventConfig()) return;
+  if (!variable || isGlobalVariable(variable)) return;
   const cacheKey = `${stateFips}|${variable}`;
 
   if (tractVariableRowsCache.has(cacheKey)) {
-    tractRowsByState.set(stateFips, tractVariableRowsCache.get(cacheKey));
-    if (updateUi) refreshTractMapValues();
-    return;
+    const cachedRows = tractVariableRowsCache.get(cacheKey);
+    if (cachedRows?.length && (variable in cachedRows[0])) {
+      tractRowsByState.set(stateFips, cachedRows);
+      if (updateUi) refreshTractMapValues();
+      return;
+    }
   }
   if (tractLoadPromises.has(cacheKey)) return tractLoadPromises.get(cacheKey);
 
@@ -4351,6 +4929,12 @@ function addTractLegend() {
 
 function updateTractLegend(minimum, midpoint, maximum, colors) {
   if (!tractLegend) return;
+  const zeroNote = isZeroIgnoredVariable(state.variable)
+    ? `<div class="tract-legend-zero" style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--text-muted, #64748b);">
+        <span style="display:inline-block;width:12px;height:12px;background:#94a3b8;border-radius:2px;border:1px solid rgba(0,0,0,0.15);"></span>
+        <span>0 or no reported impact</span>
+       </div>`
+    : "";
   tractLegend.innerHTML = `
     <strong>${escapeHtml(variableLabel(state.variable))}</strong>
     <div class="tract-legend-bar-container">
@@ -4363,6 +4947,7 @@ function updateTractLegend(minimum, midpoint, maximum, colors) {
         <span>${escapeHtml(formatValue(minimum, state.variable))}</span>
       </div>
     </div>
+    ${zeroNote}
   `;
 }
 
