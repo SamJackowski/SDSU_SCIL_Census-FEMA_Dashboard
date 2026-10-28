@@ -43,6 +43,12 @@
 
 ## Version 1.1.3.4 (10/11/2026) 
 - Added El Nino data from FEMA and NOAA
-- Added Live earthquake feed to show counties with daily, weekly, and monthly statistics 
+- Added Live earthquake feed to show counties with daily, weekly, and monthly statistics
+
+## Version 1.1.4 (11/28/2026) 
+- Added global map mode to show country data
+- Datasets added include UN, FAO, and more
+- Added insurance popup upon clicking a geographic area
+- Includes risk summaries as well as advising for underwriters
 
 
