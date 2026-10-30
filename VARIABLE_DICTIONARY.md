@@ -229,6 +229,17 @@ The dashboard combines:
 **Source:** ACS
 
 ---
+## Median Annual Homeowners Insurance
+**Variable:** `median_homeowners_insurance`
+
+**Definition:** Median annual homeowners insurance cost for owner-occupied housing units with a mortgage, computed via frequency bracket interpolation from Census ACS Table B25141. Note: ACS Table B25141 surveys all owner-occupied mortgaged units, combining single-family detached homes (HO-3 / HO-5) and condominiums / townhomes (HO-6 "walls-in"). In areas with significant condominium density, the tract median reflects this blended distribution, as condo unit-owner policies are substantially lower (~$400–$750/yr) due to HOA master policies covering exterior building structures.
+
+**Unit:** U.S. Dollars / Year
+
+**Source:** ACS (Table B25141)
+
+---
+
 
 ## Vacancy Rate
 **Variable:** `vacancy_rate`
@@ -697,6 +708,17 @@ The dashboard combines county-level demographic and socioeconomic indicators fro
 **Source:** ACS
 
 ---
+## Median Annual Homeowners Insurance
+**Variable:** `median_homeowners_insurance`
+
+**Definition:** Median annual homeowners insurance cost for owner-occupied housing units with a mortgage, computed via frequency bracket interpolation from Census ACS Table B25141.
+
+**Unit:** U.S. Dollars / Year
+
+**Source:** ACS (Table B25141)
+
+---
+
 
 ## Vacancy Rate
 **Variable:** `vacancy_rate`

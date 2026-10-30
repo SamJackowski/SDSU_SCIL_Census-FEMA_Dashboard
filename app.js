@@ -20,6 +20,25 @@ Object.assign(MapboxDraw.constants.classes, {
   ATTRIBUTION: "maplibregl-ctrl-attrib",
 });
 
+function sanitizeDrawStyles(styles) {
+  if (!Array.isArray(styles)) return styles;
+  return styles.map((layer) => {
+    if (layer?.paint && Array.isArray(layer.paint["line-dasharray"])) {
+      const arr = layer.paint["line-dasharray"];
+      if (arr[0] !== "literal") {
+        return {
+          ...layer,
+          paint: {
+            ...layer.paint,
+            "line-dasharray": ["literal", arr],
+          },
+        };
+      }
+    }
+    return layer;
+  });
+}
+
 const US_TRACTS_PMTILES_URLS = {
   2010: new URL("data/tiles/us-tracts-2010.pmtiles", import.meta.url).href,
   2020: new URL("data/tiles/us-tracts.pmtiles", import.meta.url).href,
@@ -226,6 +245,7 @@ const labels = {
   median_home_value: "Median Home Value",
   median_gross_rent: "Median Gross Rent",
   median_year_built: "Median Year Built",
+  median_homeowners_insurance: "Median Annual Homeowners Insurance",
   vacancy_rate: "Vacancy Rate",
   owner_occupied_pct: "Homeownership Rate",
   renter_occupied_pct: "Renter Occupancy Rate",
@@ -558,6 +578,7 @@ let state = {
   scaleMode: "robust",
   activeTab: "map",
   statsView: "overview",
+  bandFractions: [0.20, 0.40, 0.60, 0.80],
 };
 let availableYears = [];
 let yearAnimationTimer = null;
@@ -621,6 +642,12 @@ function defaultMetadata(variable) {
     meta.unit = "Year";
     meta.interpretation =
       "Higher values indicate a newer housing stock.";
+  } else if (variable === "median_homeowners_insurance") {
+    meta.definition = "Median annual homeowners insurance cost for owner-occupied housing units with a mortgage.";
+    meta.unit = "USD/year";
+    meta.interpretation =
+      "Higher values indicate higher neighborhood property insurance costs.";
+    meta.source = "U.S. Census Bureau American Community Survey (Table B25141)";
   } else if (/_risk_score$/.test(variable) || variable === "fema_risk_score") {
     meta.definition = `${label} calculated as part of FEMA's National Risk Index.`;
     meta.unit = "Risk score";
@@ -1337,7 +1364,7 @@ function valueKind(variable) {
   if (variable === "median_year_built") return "year";
   if (/^inform_|^wri_|^ndgain_/.test(variable)) return "score";
   if (/rate|pct|percent/.test(variable)) return "percent";
-  if (/gdp|income|rent|home_value|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim|amount|share|damage/.test(variable)) {
+  if (/gdp|income|rent|home_value|insurance|expected_annual_loss|wage|salary|earnings|payments|payment_per_claim|amount|share|damage/.test(variable)) {
     return "dollar";
   }
   if (/population|units|households|labor_force|employed|unemployed|exposure|claim_count|structures|deaths|affected|disaster_count|assessment_locations$|assessments_110_plus_mph$/.test(variable)) {
@@ -1538,6 +1565,10 @@ function isFemaVariable(variable = state.variable) {
 }
 
 function yearsForVariable(variable) {
+  if (variable === "median_homeowners_insurance") {
+    return [2023];
+  }
+
   const years = [
     ...new Set(
       rows
@@ -1622,7 +1653,10 @@ function syncYearAnimationControls({
     availableYears.at(-1),
   );
 
-  if (femaVariable) {
+  if (state.variable === "median_homeowners_insurance") {
+    els.yearAnimationHelp.textContent =
+      "Only 2023 Census ACS 5-Year data is available for this variable.";
+  } else if (femaVariable) {
     els.yearAnimationHelp.textContent =
       `Year animation is unavailable for FEMA variables. Showing ${state.year}.`;
   } else if (!hasMultipleYears) {
@@ -2197,11 +2231,12 @@ function renderMap(data) {
     z: values,
     featureidkey: geographyConfig().featureIdKey,
 
-    colorscale,
+    colorscale: getPlotlySteppedColorscale(),
     autocolorscale: false,
     reversescale: false,
     zmin: cmin,
     zmax: cmax,
+    showscale: false,
 
     marker: {
       line: {
@@ -2263,7 +2298,8 @@ colorbar: {
 },
 };
 
-Plotly.react(
+updateInteractiveColorbar();
+  Plotly.react(
   els.mapChart,
   [trace],
   {
@@ -2996,6 +3032,10 @@ function renderVisibility() {
   Object.entries(sections).forEach(([name, element]) => {
     element.classList.toggle("hidden", state.activeTab !== name);
   });
+  const bar = document.getElementById("interactiveColorbar");
+  if (bar) {
+    bar.classList.toggle("hidden", state.activeTab !== "map");
+  }
   document.body.dataset.activeTab = state.activeTab;
 
   document.querySelectorAll(".dashboard-tab").forEach((button) => {
@@ -3006,7 +3046,7 @@ function renderVisibility() {
 }
 
 function updateTabAvailability() {
-  const hasNoTimeSeries = isFemaVariable(state.variable);
+  const hasNoTimeSeries = isFemaVariable(state.variable) || state.variable === "median_homeowners_insurance";
   const trendButton = document.querySelector(
     '.dashboard-tab[data-tab="trend"]',
   );
@@ -3116,7 +3156,10 @@ function render() {
   els.status.textContent = state.geography === "global"
     ? `Showing ${data.length.toLocaleString()} country records.`
     : `Showing ${data.length.toLocaleString()} ${geographyLabel().toLowerCase()} records.`;
-  if (state.activeTab === "map") renderMap(data);
+  if (state.activeTab === "map") {
+    renderMap(data);
+    updateInteractiveColorbar();
+  }
   if (state.activeTab === "trend") renderTrend();
   if (state.activeTab === "stats") renderStats(data);
 }
@@ -3877,6 +3920,7 @@ els.variableSelect.addEventListener("change", async () => {
   }
 
   state.variable = selectedVar;
+  state.bandFractions = [0.20, 0.40, 0.60, 0.80];
   syncYearAnimationControls({ preserveYear: true });
   render();
 });
@@ -4238,11 +4282,16 @@ function initTractMap() {
 
   tractMap.addControl(new maplibregl.NavigationControl(), "top-right");
 
+  const customDrawStyles = sanitizeDrawStyles(
+    MapboxDraw.constants?.theme || MapboxDraw.lib?.theme || []
+  );
   mapDraw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {},
+    ...(customDrawStyles?.length ? { styles: customDrawStyles } : {}),
   });
   tractMap.addControl(mapDraw, "top-left");
+  attachColorbarToMap();
   
   els.drawPolygonBtn.addEventListener("click", () => {
     mapDraw.changeMode("draw_polygon");
@@ -4602,44 +4651,10 @@ function renderAdminMap(data) {
   const valExpr = ["coalesce", ["feature-state", "value"], ["get", "value"]];
   const filterPositive = isZeroIgnoredVariable(state.variable);
 
-  const fillExpression = filterPositive
-    ? [
-        "case",
-        ["==", valExpr, null],
-        "#94a3b8",
-        ["<=", valExpr, 0],
-        "#94a3b8",
-        [
-          "interpolate",
-          ["linear"],
-          valExpr,
-          cmin, start,
-          cmin + (cmax - cmin) * 0.25, low,
-          midpoint, middle,
-          cmin + (cmax - cmin) * 0.75, high,
-          cmax, end,
-        ],
-      ]
-    : [
-        "case",
-        ["!=", valExpr, null],
-        [
-          "interpolate",
-          ["linear"],
-          valExpr,
-          cmin, start,
-          cmin + (cmax - cmin) * 0.25, low,
-          midpoint, middle,
-          cmin + (cmax - cmin) * 0.75, high,
-          cmax, end,
-        ],
-        "#94a3b8",
-      ];
-
+  const fillExpression = getTractStepFillExpression(cmin, cmax);
   tractMap.setPaintProperty("admin-fill", "fill-color", fillExpression);
 
-  addTractLegend();
-  updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
+  updateInteractiveColorbar();
 
   const fitKey = [
     state.geography,
@@ -4896,23 +4911,13 @@ function refreshTractMapValues() {
   const [start, low, middle, high, end] = tractColorRamp();
   const midpoint = cmin + (cmax - cmin) / 2;
 
-  tractMap.setPaintProperty("tract-fill", "fill-color", [
-    "case",
-    ["!=", ["feature-state", "value"], null],
-    [
-      "interpolate",
-      ["linear"],
-      ["feature-state", "value"],
-      cmin, start,
-      cmin + (cmax - cmin) * 0.25, low,
-      midpoint, middle,
-      cmin + (cmax - cmin) * 0.75, high,
-      cmax, end,
-    ],
-    "#94a3b8"
-  ]);
+  const fillExpression = getTractStepFillExpression(cmin, cmax);
+  tractMap.setPaintProperty("tract-fill", "fill-color", fillExpression);
+  if (tractMap.getLayer("admin-fill")) {
+    tractMap.setPaintProperty("admin-fill", "fill-color", fillExpression);
+  }
 
-  updateTractLegend(cmin, midpoint, cmax, [start, low, middle, high, end]);
+  updateInteractiveColorbar();
 
   const event = currentEventConfig();
   els.status.textContent = event
@@ -4949,6 +4954,368 @@ function updateTractLegend(minimum, midpoint, maximum, colors) {
     </div>
     ${zeroNote}
   `;
+}
+
+// --- Interactive Moveable-Bands Colorbar ---
+
+let activeColorbarHandle = null;
+let colorbarInitialized = false;
+
+function attachColorbarToMap() {
+  const bar = document.getElementById("interactiveColorbar");
+  if (!bar) return;
+  const container = tractMap?.getContainer() || document.getElementById("tractMap") || document.getElementById("mapSection");
+  if (container && bar.parentElement !== container) {
+    container.appendChild(bar);
+  }
+}
+
+function getPlotlySteppedColorscale() {
+  const colors = tractColorRamp();
+  const [f0, f1, f2, f3] = state.bandFractions;
+  return [
+    [0.0, colors[0]],
+    [f0, colors[0]],
+    [f0, colors[1]],
+    [f1, colors[1]],
+    [f1, colors[2]],
+    [f2, colors[2]],
+    [f2, colors[3]],
+    [f3, colors[3]],
+    [f3, colors[4]],
+    [1.0, colors[4]],
+  ];
+}
+
+function getTractStepFillExpression(cmin, cmax) {
+  const range = cmax - cmin;
+  const colors = tractColorRamp();
+  const [t0, t1, t2, t3] = state.bandFractions.map((f) => cmin + f * range);
+  const valExpr = ["coalesce", ["feature-state", "value"], ["get", "value"]];
+  const stepExpr = [
+    "step",
+    valExpr,
+    colors[0],
+    t0, colors[1],
+    t1, colors[2],
+    t2, colors[3],
+    t3, colors[4],
+  ];
+
+  const filterPositive = isZeroIgnoredVariable(state.variable);
+  return filterPositive
+    ? [
+        "case",
+        ["==", valExpr, null], "#94a3b8",
+        ["<=", valExpr, 0], "#94a3b8",
+        stepExpr,
+      ]
+    : [
+        "case",
+        ["==", valExpr, null], "#94a3b8",
+        stepExpr,
+      ];
+}
+
+function applyBandClassificationToMap() {
+  let [cmin, cmax] = mapColorRange();
+  if (cmin === cmax) cmax = cmin + 1;
+
+  const fillExpr = getTractStepFillExpression(cmin, cmax);
+  if (tractMap?.getLayer("tract-fill")) {
+    tractMap.setPaintProperty("tract-fill", "fill-color", fillExpr);
+  }
+  if (tractMap?.getLayer("admin-fill")) {
+    tractMap.setPaintProperty("admin-fill", "fill-color", fillExpr);
+  }
+  if (els.mapChart?.data?.length) {
+    Plotly.restyle(els.mapChart, { colorscale: [getPlotlySteppedColorscale()] }, [0]);
+  }
+}
+
+function updateInteractiveColorbar() {
+  attachColorbarToMap();
+  const bar = document.getElementById("interactiveColorbar");
+  if (!bar) return;
+
+  if (!colorbarInitialized) {
+    initInteractiveColorbar();
+    colorbarInitialized = true;
+  }
+
+  const titleEl = document.getElementById("colorbarTitle");
+  if (titleEl) {
+    titleEl.textContent = variableLabel(state.variable);
+  }
+
+  let [cmin, cmax] = mapColorRange();
+  if (cmin === cmax) cmax = cmin + 1;
+
+  renderColorbarBandsAndHandles(cmin, cmax);
+}
+
+function renderColorbarBandsAndHandles(cmin, cmax) {
+  const maxEl = document.getElementById("colorbarLimitMax");
+  const minEl = document.getElementById("colorbarLimitMin");
+  if (maxEl) maxEl.textContent = formatValue(cmax, state.variable);
+  if (minEl) minEl.textContent = formatValue(cmin, state.variable);
+
+  const colors = tractColorRamp();
+  colors.forEach((col, idx) => {
+    const band = document.getElementById(`colorBand${idx}`);
+    if (band) band.style.backgroundColor = col;
+  });
+
+  const mobile = isMobile();
+  const [f0, f1, f2, f3] = state.bandFractions;
+  const range = cmax - cmin;
+
+  const band0 = document.getElementById("colorBand0");
+  const band1 = document.getElementById("colorBand1");
+  const band2 = document.getElementById("colorBand2");
+  const band3 = document.getElementById("colorBand3");
+  const band4 = document.getElementById("colorBand4");
+
+  if (mobile) {
+    if (band0) band0.style.width = `${f0 * 100}%`;
+    if (band1) band1.style.width = `${(f1 - f0) * 100}%`;
+    if (band2) band2.style.width = `${(f2 - f1) * 100}%`;
+    if (band3) band3.style.width = `${(f3 - f2) * 100}%`;
+    if (band4) band4.style.width = `${(1.0 - f3) * 100}%`;
+    [band0, band1, band2, band3, band4].forEach((b) => {
+      if (b) {
+        b.style.height = "100%";
+      }
+    });
+  } else {
+    if (band0) band0.style.height = `${f0 * 100}%`;
+    if (band1) band1.style.height = `${(f1 - f0) * 100}%`;
+    if (band2) band2.style.height = `${(f2 - f1) * 100}%`;
+    if (band3) band3.style.height = `${(f3 - f2) * 100}%`;
+    if (band4) band4.style.height = `${(1.0 - f3) * 100}%`;
+    [band0, band1, band2, band3, band4].forEach((b) => {
+      if (b) {
+        b.style.width = "100%";
+      }
+    });
+  }
+
+  // Update handles
+  state.bandFractions.forEach((f, idx) => {
+    const handle = document.getElementById(`colorbarHandle${idx}`);
+    const tag = document.getElementById(`handleTag${idx}`);
+    if (handle) {
+      if (mobile) {
+        handle.style.left = `${f * 100}%`;
+        handle.style.bottom = "auto";
+      } else {
+        handle.style.bottom = `${f * 100}%`;
+        handle.style.left = "-6px";
+      }
+    }
+    if (tag) {
+      const val = cmin + f * range;
+      tag.textContent = formatValue(val, state.variable);
+    }
+  });
+
+  // Tooltips for bands
+  const t0 = cmin + f0 * range;
+  const t1 = cmin + f1 * range;
+  const t2 = cmin + f2 * range;
+  const t3 = cmin + f3 * range;
+  if (band0) band0.title = `Band 1: ${formatValue(cmin, state.variable)} – ${formatValue(t0, state.variable)}`;
+  if (band1) band1.title = `Band 2: ${formatValue(t0, state.variable)} – ${formatValue(t1, state.variable)}`;
+  if (band2) band2.title = `Band 3: ${formatValue(t1, state.variable)} – ${formatValue(t2, state.variable)}`;
+  if (band3) band3.title = `Band 4: ${formatValue(t2, state.variable)} – ${formatValue(t3, state.variable)}`;
+  if (band4) band4.title = `Band 5: ${formatValue(t3, state.variable)} – ${formatValue(cmax, state.variable)}`;
+
+  const zeroNotice = document.getElementById("colorbarZeroNotice");
+  if (zeroNotice) {
+    zeroNotice.classList.toggle("hidden", !isZeroIgnoredVariable(state.variable));
+  }
+}
+
+function initInteractiveColorbar() {
+  const equalBtn = document.getElementById("colorbarEqualBtn");
+  const quantBtn = document.getElementById("colorbarQuantileBtn");
+  const minBtn = document.getElementById("colorbarMinimizeBtn");
+  const bar = document.getElementById("interactiveColorbar");
+
+  if (minBtn && bar) {
+    minBtn.addEventListener("click", () => {
+      bar.classList.toggle("minimized");
+      minBtn.textContent = bar.classList.contains("minimized") ? "+" : "−";
+    });
+  }
+
+  const expandBtn = document.getElementById("colorbarExpandBtn");
+  if (expandBtn && bar) {
+    expandBtn.addEventListener("click", () => {
+      bar.classList.remove("minimized");
+      bar.classList.toggle("expanded");
+      const isExp = bar.classList.contains("expanded");
+      expandBtn.textContent = isExp ? "⤡" : "⤢";
+      expandBtn.title = isExp ? "Restore default size" : "Expand size";
+      bar.style.removeProperty("--colorbar-width");
+      bar.style.removeProperty("--colorbar-track-height");
+      bar.style.removeProperty("width");
+      bar.style.removeProperty("height");
+      let [cmin, cmax] = mapColorRange();
+      if (cmin === cmax) cmax = cmin + 1;
+      renderColorbarBandsAndHandles(cmin, cmax);
+    });
+  }
+
+  const grip = document.getElementById("colorbarResizeGrip");
+  if (grip && bar) {
+    let isResizing = false;
+    let startX = 0, startY = 0, startW = 0, startH = 0;
+
+    const onGripDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { grip.setPointerCapture(e.pointerId); } catch {}
+      isResizing = true;
+      grip.classList.add("resizing");
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = bar.getBoundingClientRect();
+      startW = rect.width;
+      const trackEl = document.getElementById("colorbarTrackContainer");
+      startH = trackEl ? trackEl.getBoundingClientRect().height : 370;
+    };
+
+    const onGripMove = (e) => {
+      if (!isResizing) return;
+      const dx = startX - e.clientX;
+      const dy = startY - e.clientY;
+      const newW = Math.max(220, Math.min(580, Math.round(startW + dx)));
+      const newH = Math.max(200, Math.min(800, Math.round(startH + dy)));
+      bar.style.setProperty("--colorbar-width", `${newW}px`);
+      bar.style.setProperty("--colorbar-track-height", `${newH}px`);
+      let [cmin, cmax] = mapColorRange();
+      if (cmin === cmax) cmax = cmin + 1;
+      renderColorbarBandsAndHandles(cmin, cmax);
+    };
+
+    const onGripUp = (e) => {
+      if (isResizing) {
+        try { grip.releasePointerCapture(e.pointerId); } catch {}
+        isResizing = false;
+        grip.classList.remove("resizing");
+      }
+    };
+
+    grip.addEventListener("pointerdown", onGripDown);
+    grip.addEventListener("pointermove", onGripMove);
+    grip.addEventListener("pointerup", onGripUp);
+    grip.addEventListener("pointercancel", onGripUp);
+  }
+
+  if (equalBtn) {
+    equalBtn.addEventListener("click", () => {
+      state.bandFractions = [0.20, 0.40, 0.60, 0.80];
+      let [cmin, cmax] = mapColorRange();
+      if (cmin === cmax) cmax = cmin + 1;
+      renderColorbarBandsAndHandles(cmin, cmax);
+      applyBandClassificationToMap();
+    });
+  }
+
+  if (quantBtn) {
+    quantBtn.addEventListener("click", () => {
+      let values = [];
+      if (state.geography === "tract") {
+        tractRowsByState.forEach((stRows) => {
+          stRows.forEach((r) => {
+            if (Number(r.year) === Number(state.year) && validNumber(r[state.variable])) {
+              values.push(toNumber(r[state.variable]));
+            }
+          });
+        });
+      } else {
+        values = filtered().map((r) => r.value).filter(validNumber);
+      }
+
+      if (isZeroIgnoredVariable(state.variable)) {
+        values = values.filter((v) => v > 0);
+      }
+
+      values.sort((a, b) => a - b);
+      if (values.length >= 5) {
+        let [cmin, cmax] = mapColorRange();
+        if (cmin === cmax) cmax = cmin + 1;
+        const range = cmax - cmin;
+        const q0 = quantile(values, 0.20);
+        const q1 = quantile(values, 0.40);
+        const q2 = quantile(values, 0.60);
+        const q3 = quantile(values, 0.80);
+
+        let f0 = Math.max(0.04, Math.min(0.85, (q0 - cmin) / range));
+        let f1 = Math.max(f0 + 0.03, Math.min(0.89, (q1 - cmin) / range));
+        let f2 = Math.max(f1 + 0.03, Math.min(0.93, (q2 - cmin) / range));
+        let f3 = Math.max(f2 + 0.03, Math.min(0.97, (q3 - cmin) / range));
+
+        state.bandFractions = [f0, f1, f2, f3];
+        renderColorbarBandsAndHandles(cmin, cmax);
+        applyBandClassificationToMap();
+      }
+    });
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const handle = document.getElementById(`colorbarHandle${i}`);
+    if (!handle) continue;
+
+    const onPointerDown = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { handle.setPointerCapture(e.pointerId); } catch {}
+      activeColorbarHandle = i;
+      handle.classList.add("dragging");
+    };
+
+    const onPointerMove = (e) => {
+      if (activeColorbarHandle !== i) return;
+      const track = document.getElementById("colorbarTrack");
+      if (!track) return;
+
+      const rect = track.getBoundingClientRect();
+      const mobile = isMobile();
+      let raw;
+      if (mobile) {
+        const dist = e.clientX - rect.left;
+        raw = dist / rect.width;
+      } else {
+        const dist = rect.bottom - e.clientY;
+        raw = dist / rect.height;
+      }
+
+      const minF = i > 0 ? state.bandFractions[i - 1] + 0.03 : 0.02;
+      const maxF = i < 3 ? state.bandFractions[i + 1] - 0.03 : 0.98;
+      state.bandFractions[i] = Math.max(minF, Math.min(maxF, raw));
+
+      let [cmin, cmax] = mapColorRange();
+      if (cmin === cmax) cmax = cmin + 1;
+      renderColorbarBandsAndHandles(cmin, cmax);
+      applyBandClassificationToMap();
+    };
+
+    const onPointerUp = (e) => {
+      if (activeColorbarHandle === i) {
+        try { handle.releasePointerCapture(e.pointerId); } catch {}
+        activeColorbarHandle = null;
+        handle.classList.remove("dragging");
+        applyBandClassificationToMap();
+      }
+    };
+
+    handle.addEventListener("pointerdown", onPointerDown);
+    handle.addEventListener("pointermove", onPointerMove);
+    handle.addEventListener("pointerup", onPointerUp);
+    handle.addEventListener("pointercancel", onPointerUp);
+  }
 }
 
 window.addEventListener("resize", handleViewportResize);

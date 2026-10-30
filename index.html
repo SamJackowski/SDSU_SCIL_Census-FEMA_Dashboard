@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mapbox/mapbox-gl-draw@1.5.0/dist/mapbox-gl-draw.css">
   <script src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
-<body>
+<body data-active-tab="map">
   <div class="app-shell">
     <div id="mobileOverlay" class="mobile-overlay"></div><aside class="sidebar"><button id="closeSidebarBtn" class="close-sidebar-btn" type="button" aria-label="Close filters">&times;</button>
       <div class="brand">
@@ -234,6 +234,59 @@
         </div>
         <div id="mapChart" class="chart map-chart"></div>
         <div id="tractMap" class="chart map-chart hidden"></div>
+        <div id="interactiveColorbar" class="interactive-colorbar">
+          <div class="colorbar-resize-grip" id="colorbarResizeGrip" title="Drag corner to resize colorbar"></div>
+          <div class="colorbar-header">
+            <div class="colorbar-title-row">
+              <span class="colorbar-title" id="colorbarTitle">Variable</span>
+              <div class="colorbar-header-btns">
+                <button type="button" id="colorbarExpandBtn" class="colorbar-icon-btn" title="Expand / Restore size" aria-label="Expand size">⤢</button>
+                <button type="button" id="colorbarMinimizeBtn" class="colorbar-icon-btn" title="Minimize / Restore" aria-label="Toggle colorbar">−</button>
+              </div>
+            </div>
+            <div class="colorbar-actions">
+              <button type="button" id="colorbarEqualBtn" class="colorbar-pill-btn" title="Reset to equal width bands">Equal</button>
+              <button type="button" id="colorbarQuantileBtn" class="colorbar-pill-btn" title="Set cutoffs by data quantiles (equal number of locations per band)">Quantiles</button>
+            </div>
+          </div>
+          <div class="colorbar-body" id="colorbarBody">
+            <div class="colorbar-track-container" id="colorbarTrackContainer">
+              <div class="colorbar-track" id="colorbarTrack">
+                <div class="color-band band-0" id="colorBand0" title="Band 1 (Lowest)"></div>
+                <div class="color-band band-1" id="colorBand1" title="Band 2"></div>
+                <div class="color-band band-2" id="colorBand2" title="Band 3"></div>
+                <div class="color-band band-3" id="colorBand3" title="Band 4"></div>
+                <div class="color-band band-4" id="colorBand4" title="Band 5 (Highest)"></div>
+              </div>
+              <div class="colorbar-handle" id="colorbarHandle3" data-handle="3" title="Drag to adjust cutoff">
+                <div class="handle-line"></div>
+                <div class="handle-thumb"></div>
+                <div class="handle-tag" id="handleTag3">-</div>
+              </div>
+              <div class="colorbar-handle" id="colorbarHandle2" data-handle="2" title="Drag to adjust cutoff">
+                <div class="handle-line"></div>
+                <div class="handle-thumb"></div>
+                <div class="handle-tag" id="handleTag2">-</div>
+              </div>
+              <div class="colorbar-handle" id="colorbarHandle1" data-handle="1" title="Drag to adjust cutoff">
+                <div class="handle-line"></div>
+                <div class="handle-thumb"></div>
+                <div class="handle-tag" id="handleTag1">-</div>
+              </div>
+              <div class="colorbar-handle" id="colorbarHandle0" data-handle="0" title="Drag to adjust cutoff">
+                <div class="handle-line"></div>
+                <div class="handle-thumb"></div>
+                <div class="handle-tag" id="handleTag0">-</div>
+              </div>
+              <div class="colorbar-limit limit-max" id="colorbarLimitMax">-</div>
+              <div class="colorbar-limit limit-min" id="colorbarLimitMin">-</div>
+            </div>
+          </div>
+          <div id="colorbarZeroNotice" class="colorbar-zero-notice hidden">
+            <span class="zero-swatch"></span>
+            <span>0 or no reported impact</span>
+          </div>
+        </div>
       </section>
 
       <section id="trendSection" class="section-card hidden">
