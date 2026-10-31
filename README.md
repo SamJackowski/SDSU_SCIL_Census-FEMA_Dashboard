@@ -1,6 +1,6 @@
-# SDSU SCIL Census–FEMA Dashboard
-
-An interactive web dashboard for exploring county-level demographic, socioeconomic, and FEMA National Risk Index data across the United States.  
+# SDSU SCIL iCHARMrisk Dashboard
+An interactive web dashboard for exploring county-level demographic, socioeconomic, and FEMA National Risk Index data across the United States.   
+Part of the iCHARM suite developed by the SDSU Climate Informatics Lab  
    
 Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)  
 Directed by Distinguished Professor Samuel Shen (SCIL Director)  
