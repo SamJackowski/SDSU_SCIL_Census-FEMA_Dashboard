@@ -5,7 +5,7 @@ An interactive web dashboard for exploring county-level demographic, socioeconom
 Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)  
 Directed by Distinguished Professor Samuel Shen (SCIL Director)  
 Released August 2026   
-Version 1.1.4
+Version 1.1.4.1
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
