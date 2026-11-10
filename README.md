@@ -5,7 +5,7 @@ Part of the iCHARM suite developed by the SDSU Climate Informatics Lab
 Created by Sam Jackowski for the San Diego State University Climate Informatics Lab (SCIL)  
 Directed by Distinguished Professor Samuel Shen (SCIL Director)  
 Released August 2026   
-Version 1.1.4.1
+Version 1.1.4.2
 
 [See patch history](https://github.com/SamJackowski/SDSU_SCIL_Census-FEMA_Dashboard/blob/main/CHANGELOG.md)  
 
