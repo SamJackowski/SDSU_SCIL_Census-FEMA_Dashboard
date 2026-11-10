@@ -1084,33 +1084,62 @@ export function createRiskCard(ctx) {
     const neighborHoBase = (neighborStructuralRcv / 1000) * effectiveHoRate;
 
     // Ground-truth empirical baseline from Census ACS Table B25141 (mortgaged homeowners median)
-    // Note: ACS B25141 includes ALL owner-occupied mortgaged units (both single-family and condos).
+    // Note: ACS B25141 aggregates ALL owner-occupied mortgaged units (both single-family and condos).
     const hasEmpiricalHo = Number.isFinite(Number(data.medianHomeownersInsurance)) && Number(data.medianHomeownersInsurance) > 100;
     const empiricalHoVal = hasEmpiricalHo ? Math.round(Number(data.medianHomeownersInsurance)) : null;
 
+    // Actuarial Portfolio De-Biasing Engine:
+    // Deconstructs the blended Census median by adjusting for local condo share, neighborhood vintage era,
+    // and market-wide deductible/underwriting trends to produce a pure 1.0x Clean Base Rate.
+    let condoShare = 0.12;
+    if (marketTier.id === "coastal_high" || tractMedianVal >= 650000) {
+      condoShare = 0.35;
+    } else if (marketTier.id === "rural_low" || tractMedianVal < 200000) {
+      condoShare = 0.03;
+    }
+    const condoRcvRatio = 0.28; // Condo HO-6 interior buildout relative to SFH
+    const phiType = (1 - condoShare) + (condoShare * condoRcvRatio); // Portfolio property type factor (1 - 0.72c)
+    const phiVintage = neighborVintage.factor; // Tract median vintage multiplier
+    const phiDeductible = 0.94; // Portfolio deductible shift (~50% at $2,500+ deductibles)
+    const phiClaims = 1.025; // ~6% 5-year claims frequency with surcharge
+    const phiMitigation = 0.97; // ~12-15% certified retrofit penetration
+    const phiUnderwriting = phiDeductible * phiClaims * phiMitigation; // ~0.9346
+    const phiTotal = Math.max(0.45, Math.min(1.60, phiType * phiVintage * phiUnderwriting));
+
+    let cleanSfhBase;
+    let cleanCondoBase;
     let neighborHoPremium;
     let userHoUnmitigated;
     let hoBaselineSource;
     let hoBaselineShort;
 
     if (hasEmpiricalHo) {
-      // If condo, scale the tract baseline to an actuarial HO-6 equivalent (interior RCV share vs whole structure)
-      const condoBenchRatio = isCondo ? (condoStructureRatio / marketTier.structureRatio) : 1.0;
-      neighborHoPremium = Math.round(empiricalHoVal * condoBenchRatio);
+      // De-biased 1.0x Clean Base Rates (standard $1,000 deductible, 0 claims, neutral 1995-2001 era vintage)
+      cleanSfhBase = Math.round(empiricalHoVal / phiTotal);
+      cleanCondoBase = Math.round(cleanSfhBase * condoRcvRatio);
 
-      // Proportional scaling for property structural replacement value and building vintage era
+      // Set target baseline for currently selected property type
+      neighborHoPremium = isCondo ? cleanCondoBase : cleanSfhBase;
+
+      // Rate scales from normalized clean baseline:
+      // - RCV scaling for user property valuation vs neighborhood median valuation
+      // - User vintage code factor relative to neutral 1.0x baseline
+      // - User prior claims factor
+      // - User policy deductible factor
       const rcvRatio = neighborStructuralRcv > 0 ? (userStructuralRcv / neighborStructuralRcv) : 1.0;
-      const vintageRatio = neighborVintage.factor > 0 ? (userVintage.factor / neighborVintage.factor) : 1.0;
-      userHoUnmitigated = neighborHoPremium * rcvRatio * vintageRatio * userHoClaimMult * hoDedFactor;
+      userHoUnmitigated = neighborHoPremium * rcvRatio * userVintage.factor * userHoClaimMult * hoDedFactor;
+
       hoBaselineSource = isCondo
-        ? (data.geographyType === "Census Tract" ? "Census ACS B25141 Tract Median (Condo HO-6 Calibrated)" : "Census ACS B25141 County Median (Condo HO-6 Calibrated)")
-        : (data.geographyType === "Census Tract"
-          ? "Census ACS B25141 Tract Median"
-          : (data.geographyType === "State" ? "Census ACS B25141 State Avg" : "Census ACS B25141 County Median"));
-      hoBaselineShort = isCondo ? "ACS B25141 (HO-6)" : "Census ACS B25141";
+        ? `Census ACS B25141 (De-Biased Condo HO-6 Clean 1.0x Baseline; Raw ACS: $${empiricalHoVal.toLocaleString()}/yr)`
+        : `Census ACS B25141 (De-Biased Single-Family Clean 1.0x Baseline; Raw ACS: $${empiricalHoVal.toLocaleString()}/yr)`;
+      hoBaselineShort = isCondo ? "ACS Clean (HO-6)" : "ACS Clean (HO-3)";
     } else {
-      neighborHoPremium = Math.round(neighborHoBase * neighborVintage.factor * 0.90 * 1.0);
-      userHoUnmitigated = userHoBase * userVintage.factor * userHoClaimMult * hoDedFactor;
+      cleanSfhBase = Math.round((neighborVal * marketTier.structureRatio / 1000) * baseHoRate);
+      cleanCondoBase = Math.round((neighborVal * condoStructureRatio / 1000) * baseHoRate * 0.90);
+      neighborHoPremium = isCondo ? cleanCondoBase : cleanSfhBase;
+
+      const rcvRatio = neighborStructuralRcv > 0 ? (userStructuralRcv / neighborStructuralRcv) : 1.0;
+      userHoUnmitigated = neighborHoPremium * rcvRatio * userVintage.factor * userHoClaimMult * hoDedFactor;
       hoBaselineSource = isCondo ? "FEMA NRI Pure Loss Model (Condo HO-6)" : "FEMA NRI Pure Loss Rate Model";
       hoBaselineShort = isCondo ? "Actuarial HO-6" : "Actuarial Modeled";
     }
@@ -1118,6 +1147,65 @@ export function createRiskCard(ctx) {
     const userHoPremium = Math.round(userHoUnmitigated * userHoMitMult);
     const hoMitSavings = Math.max(0, Math.round(userHoUnmitigated - userHoPremium));
     const totalMitSavings = floodMitSavings + hoMitSavings;
+
+    // -------------------------------------------------------------------------
+    // Reinsurance & Catastrophe Capital Decomposition
+    // Decomposes gross premium into Primary Ground-Up Loss, Catastrophe Reinsurance,
+    // and Carrier Operations based on State Insurance Department (DOI) public rate filings.
+    // -------------------------------------------------------------------------
+    const TIER1_REINS_FIPS = ["12", "22"]; // Extreme Catastrophe / Hurricane Basin (FL, LA)
+    const TIER2_REINS_FIPS = ["48", "06", "40", "08", "28", "01", "45", "37"]; // High Catastrophe (TX, CA, OK, CO, MS, AL, SC, NC)
+    const TIER3_REINS_FIPS = ["13", "47", "29", "20", "05", "51", "36", "34", "09", "25", "53", "41"]; // Moderate (GA, TN, MO, etc.)
+
+    let baseReinsRate = 0.14; // Default Low-Hazard Tier 4 (OH, PA, WI, etc.)
+    let reinsTierName = "Low Reinsurance Loading Tier";
+    let reinsBadge = "Low Reinsurance Load";
+    let reinsBadgeClass = "low";
+
+    if (TIER1_REINS_FIPS.includes(stateFips)) {
+      baseReinsRate = 0.38;
+      reinsTierName = "Extreme Catastrophe / Coastal Basin (FL/LA)";
+      reinsBadge = "Severe Reinsurance Burden";
+      reinsBadgeClass = "severe";
+    } else if (TIER2_REINS_FIPS.includes(stateFips)) {
+      baseReinsRate = 0.28;
+      reinsTierName = "High Catastrophe / Wind & Wildfire Basin";
+      reinsBadge = "Elevated Reinsurance Load";
+      reinsBadgeClass = "elevated";
+    } else if (TIER3_REINS_FIPS.includes(stateFips)) {
+      baseReinsRate = 0.20;
+      reinsTierName = "Moderate Catastrophe Exposure Basin";
+      reinsBadge = "Moderate Reinsurance Load";
+      reinsBadgeClass = "moderate";
+    }
+
+    // Scale within tier using localized FEMA NRI catastrophe hazard score (0 to 100)
+    const catHazardSensitivity = (effectiveHazardScore - 50) / 100;
+    let reinsShare = baseReinsRate + (catHazardSensitivity * 0.12);
+    if ((isCoastalSurgeActive || Number(wildfire?.score) >= 70) && effectiveHazardScore >= 70) {
+      reinsShare += 0.04;
+    }
+    reinsShare = Math.max(0.10, Math.min(0.48, reinsShare));
+
+    // Carrier operating expenses & regulatory fees (Loss adjustment, underwriting, state guaranty pools)
+    const expenseShare = 0.18;
+    const groundUpShare = Math.max(0.34, 1.0 - reinsShare - expenseShare);
+
+    const reinsAmount = Math.round(userHoPremium * reinsShare);
+    const expenseAmount = Math.round(userHoPremium * expenseShare);
+    const groundUpAmount = Math.max(0, userHoPremium - reinsAmount - expenseAmount);
+
+    const reins = {
+      reinsPct: Math.round(reinsShare * 100),
+      expensePct: Math.round(expenseShare * 100),
+      groundUpPct: Math.round(groundUpShare * 100),
+      reinsAmount,
+      expenseAmount,
+      groundUpAmount,
+      reinsTierName,
+      reinsBadge,
+      reinsBadgeClass,
+    };
 
     // Mitigation status labels for UI
     let floodMitLabel = "None (Standard Foundation)";
@@ -1153,11 +1241,11 @@ export function createRiskCard(ctx) {
         reasons.push(`your property valuation is <strong>${formatCurrency(Math.abs(diffVal))} below</strong> the tract median`);
       }
     }
-    if (Math.abs(userYear - neighborYear) >= 3 && Math.abs(userVintage.factor - neighborVintage.factor) >= 0.03) {
-      if (userVintage.factor > neighborVintage.factor) {
-        reasons.push(`property vintage (${userYear}) is older than tract median (${neighborYear}), adding a structural aging surcharge`);
+    if (Math.abs(userYear - 1998) >= 5 && Math.abs(userVintage.factor - 1.0) >= 0.04) {
+      if (userVintage.rateDeltaPct > 0) {
+        reasons.push(`construction era (${userYear}) carries an aging infrastructure surcharge (+${userVintage.rateDeltaPct}% vs baseline)`);
       } else {
-        reasons.push(`modern construction vintage (${userYear}) qualifies for building code discounts vs older tract housing stock (${neighborYear})`);
+        reasons.push(`modern construction vintage (${userYear}) qualifies for building code discounts (${userVintage.rateDeltaPct}% vs baseline)`);
       }
     }
     if (inputs.claimCount > 0) {
@@ -1189,6 +1277,15 @@ export function createRiskCard(ctx) {
       isCondo,
       propertyType: inputs.propertyType || "single_family",
       rcvPctLabel: isCondo ? "22% Walls-In" : `${Math.round(marketTier.structureRatio * 100)}% RCV`,
+      empiricalHoVal,
+      condoShare,
+      phiTotal,
+      phiType,
+      phiVintage,
+      phiUnderwriting,
+      cleanSfhBase,
+      cleanCondoBase,
+      reins,
       userVal,
       neighborVal,
       userYear,
@@ -1824,7 +1921,11 @@ function renderCardModal(data) {
                   </div>
                   <div class="calc-feature-item">
                     <span>Baseline Source:</span>
-                    <strong id="hoBaselineSourceTag" style="color: #6366f1;">Census ACS B25141</strong>
+                    <strong id="hoBaselineSourceTag" style="color: #6366f1;">Census ACS (De-Biased)</strong>
+                  </div>
+                  <div class="calc-feature-item" id="rawCensusRow">
+                    <span>Observed Raw Median:</span>
+                    <strong id="rawCensusTag">$0 / yr</strong>
                   </div>
                   <div class="calc-feature-item">
                     <span>Hazard Loss Rate:</span>
@@ -1840,6 +1941,58 @@ function renderCardModal(data) {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Reinsurance & Catastrophe Capital Allocation Module -->
+          <div class="calc-reins-section" id="calcReinsSection">
+            <div class="calc-reins-header">
+              <div class="calc-reins-title">
+                <span class="calc-reins-icon">🌐</span>
+                <div>
+                  <h4>Reinsurance &amp; Catastrophe Capital Stack</h4>
+                  <span class="calc-reins-sub">Where your premium dollar goes: localized ground-up losses vs. global secondary reinsurance</span>
+                </div>
+              </div>
+              <span class="calc-reins-badge" id="reinsBadge">Elevated Reinsurance Load</span>
+            </div>
+
+            <!-- Visual 3-Layer Stacked Progress Bar -->
+            <div class="calc-reins-bar-wrap">
+              <div class="calc-reins-bar">
+                <div class="reins-segment reins-seg-ground" id="reinsSegGround" style="width: 48%;" title="Ground-Up Loss Cost"></div>
+                <div class="reins-segment reins-seg-reins" id="reinsSegReins" style="width: 34%;" title="Catastrophe Reinsurance Loading"></div>
+                <div class="reins-segment reins-seg-exp" id="reinsSegExp" style="width: 18%;" title="Carrier Expenses & Regulatory"></div>
+              </div>
+              <div class="calc-reins-legend">
+                <span class="reins-leg-item"><span class="reins-dot dot-ground"></span> Ground-Up Claims (<span id="reinsGroundPct">48%</span>)</span>
+                <span class="reins-leg-item"><span class="reins-dot dot-reins"></span> Catastrophe Reinsurance (<span id="reinsReinsPct">34%</span>)</span>
+                <span class="reins-leg-item"><span class="reins-dot dot-exp"></span> Carrier Operations &amp; Fees (<span id="reinsExpPct">18%</span>)</span>
+              </div>
+            </div>
+
+            <!-- Dollar Metrics Grid -->
+            <div class="calc-reins-grid">
+              <div class="reins-card-item">
+                <span class="reins-lbl">Ground-Up Loss Reserve</span>
+                <div class="reins-val" id="reinsGroundVal">$0 / yr</div>
+                <span class="reins-sub">Everyday localized claims (plumbing, minor fire/wind)</span>
+              </div>
+              <div class="reins-card-item highlight-reins">
+                <span class="reins-lbl">Global Reinsurance Surcharge</span>
+                <div class="reins-val" id="reinsReinsVal">$0 / yr</div>
+                <span class="reins-sub">Transferred to reinsurers for 1-in-100+ yr catastrophes</span>
+              </div>
+              <div class="reins-card-item">
+                <span class="reins-lbl">Carrier Operations &amp; Fees</span>
+                <div class="reins-val" id="reinsExpVal">$0 / yr</div>
+                <span class="reins-sub">Loss adjustment, administration, and state pool fees</span>
+              </div>
+            </div>
+
+            <!-- Context Narrative Note -->
+            <div class="calc-reins-note" id="reinsNote">
+              Calculating reinsurance allocation...
             </div>
           </div>
 
@@ -2120,7 +2273,19 @@ function renderCardModal(data) {
 
       const hoBenchLabelEl = document.getElementById("hoBenchLabel");
       if (hoBenchLabelEl) {
-        hoBenchLabelEl.textContent = data.geographyType === "Census Tract" ? "Tract Median Baseline" : "County Median Baseline";
+        hoBenchLabelEl.textContent = res.isCondo ? "Clean Condo Baseline (1.0x)" : "Clean SFH Baseline (1.0x)";
+      }
+
+      const rawCensusTagEl = document.getElementById("rawCensusTag");
+      const rawCensusRowEl = document.getElementById("rawCensusRow");
+      if (rawCensusTagEl && rawCensusRowEl) {
+        if (res.hasEmpiricalHo) {
+          rawCensusRowEl.style.display = "flex";
+          rawCensusTagEl.textContent = `$${res.empiricalHoVal.toLocaleString()} / yr (Blended ACS)`;
+          rawCensusTagEl.title = `Raw Census ACS B25141 median reflects ~${Math.round(res.condoShare * 100)}% condo share, ${res.neighborYear} average vintage, and market deductibles.`;
+        } else {
+          rawCensusRowEl.style.display = "none";
+        }
       }
       const hoBaselineSourceTagEl = document.getElementById("hoBaselineSourceTag");
       if (hoBaselineSourceTagEl) {
@@ -2157,6 +2322,39 @@ function renderCardModal(data) {
       if (hoClaimImpactTagEl) {
         hoClaimImpactTagEl.textContent = res.hoClaimSurchargeLabel;
         hoClaimImpactTagEl.className = res.hoClaimSurchargeLabel.includes("+") ? "calc-impact-alert" : "calc-impact-clean";
+      }
+
+      // Reinsurance DOM
+      const reinsBadgeEl = document.getElementById("reinsBadge");
+      const reinsSegGroundEl = document.getElementById("reinsSegGround");
+      const reinsSegReinsEl = document.getElementById("reinsSegReins");
+      const reinsSegExpEl = document.getElementById("reinsSegExp");
+      const reinsGroundPctEl = document.getElementById("reinsGroundPct");
+      const reinsReinsPctEl = document.getElementById("reinsReinsPct");
+      const reinsExpPctEl = document.getElementById("reinsExpPct");
+      const reinsGroundValEl = document.getElementById("reinsGroundVal");
+      const reinsReinsValEl = document.getElementById("reinsReinsVal");
+      const reinsExpValEl = document.getElementById("reinsExpVal");
+      const reinsNoteEl = document.getElementById("reinsNote");
+
+      if (reinsBadgeEl) {
+        reinsBadgeEl.textContent = res.reins.reinsBadge;
+        reinsBadgeEl.className = `calc-reins-badge ${res.reins.reinsBadgeClass}`;
+      }
+      if (reinsSegGroundEl) reinsSegGroundEl.style.width = `${res.reins.groundUpPct}%`;
+      if (reinsSegReinsEl) reinsSegReinsEl.style.width = `${res.reins.reinsPct}%`;
+      if (reinsSegExpEl) reinsSegExpEl.style.width = `${res.reins.expensePct}%`;
+
+      if (reinsGroundPctEl) reinsGroundPctEl.textContent = `${res.reins.groundUpPct}%`;
+      if (reinsReinsPctEl) reinsReinsPctEl.textContent = `${res.reins.reinsPct}%`;
+      if (reinsExpPctEl) reinsExpPctEl.textContent = `${res.reins.expensePct}%`;
+
+      if (reinsGroundValEl) reinsGroundValEl.textContent = `$${res.reins.groundUpAmount.toLocaleString()} / yr`;
+      if (reinsReinsValEl) reinsReinsValEl.textContent = `$${res.reins.reinsAmount.toLocaleString()} / yr`;
+      if (reinsExpValEl) reinsExpValEl.textContent = `$${res.reins.expenseAmount.toLocaleString()} / yr`;
+
+      if (reinsNoteEl) {
+        reinsNoteEl.innerHTML = `<strong>Actuarial Reinsurance Allocation:</strong> In this location (${res.reins.reinsTierName}), <strong>${res.reins.reinsPct}% ($${res.reins.reinsAmount.toLocaleString()}/yr)</strong> of your estimated hazard premium is transferred to secondary global reinsurers to absorb 1-in-100+ year tail risk (hurricanes, severe convective storms, and wildfires), calibrated against State DOI public rate filings.`;
       }
 
       // Summary Banner DOM

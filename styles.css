@@ -1,8 +1,8 @@
 :root { font-family: Arial, Helvetica, sans-serif; color: #111827; background: #f9fafb; }
 * { box-sizing: border-box; }
 body { margin: 0; }
-.app-shell { display: grid; grid-template-columns: 350px minmax(0, 1fr); min-height: 100vh; }
-.sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 20px; background: #fff; border-right: 1px solid #e5e7eb; box-shadow: 2px 0 8px rgba(0,0,0,.03); }
+.app-shell { display: grid; grid-template-columns: 350px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+.sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; padding: 24px 20px; background: #fff; border-right: 1px solid #e5e7eb; box-shadow: 2px 0 8px rgba(0,0,0,.03); }
 .brand { margin-bottom: 24px; }
 .brand h1 { margin: 6px 0 8px; font-size: 25px; }
 .icharmrisk-logo {
@@ -1139,6 +1139,7 @@ button.county-option:hover {
 /* Immersive Map Mode */
 body[data-active-tab="map"] .app-shell {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -1146,6 +1147,7 @@ body[data-active-tab="map"] .dashboard-container {
   padding: 0;
   max-width: none;
   height: 100vh;
+  height: 100dvh;
   position: relative;
 }
 
@@ -1211,7 +1213,9 @@ body[data-active-tab="map"] .map-chart {
   position: relative;
   width: 100%;
   height: 100vh !important;
+  height: 100dvh !important;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Hide map heading since it is immersive */
@@ -1359,6 +1363,8 @@ body[data-active-tab="map"] .custom-draw-controls {
     width: 320px;
     max-width: 85vw;
     height: 100vh !important;
+    height: 100dvh !important;
+    padding-bottom: calc(36px + env(safe-area-inset-bottom, 0px));
     z-index: 2000;
     transition: left 0.3s ease;
     box-shadow: 4px 0 15px rgba(0,0,0,0.3);
@@ -1642,6 +1648,7 @@ body.modal-open {
   width: 100%;
   max-width: 880px;
   max-height: 90vh;
+  max-height: 90dvh;
   border-radius: 16px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.05);
   overflow-y: auto;
@@ -3197,6 +3204,243 @@ body.modal-open {
   white-space: nowrap;
 }
 
+/* Reinsurance Cost Stack Section */
+.calc-reins-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calc-reins-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calc-reins-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calc-reins-icon {
+  font-size: 22px;
+}
+
+.calc-reins-title h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.calc-reins-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.calc-reins-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.calc-reins-badge.severe {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.calc-reins-badge.elevated {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fed7aa;
+}
+
+.calc-reins-badge.moderate {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.calc-reins-badge.low {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.calc-reins-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calc-reins-bar {
+  display: flex;
+  height: 12px;
+  width: 100%;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+.reins-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.reins-seg-ground {
+  background: #2563eb;
+}
+
+.reins-seg-reins {
+  background: #d97706;
+}
+
+.reins-seg-exp {
+  background: #64748b;
+}
+
+.calc-reins-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.reins-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reins-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.reins-dot.dot-ground {
+  background: #2563eb;
+}
+
+.reins-dot.dot-reins {
+  background: #d97706;
+}
+
+.reins-dot.dot-exp {
+  background: #64748b;
+}
+
+.calc-reins-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.reins-card-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reins-card-item.highlight-reins {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.reins-lbl {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.reins-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.reins-card-item.highlight-reins .reins-val {
+  color: #b45309;
+}
+
+.reins-sub {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.calc-reins-note {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  background: #f1f5f9;
+  border-left: 3px solid #d97706;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+/* Dark mode overrides for reinsurance section */
+:root[data-theme="dark"] .calc-reins-section {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .calc-reins-title h4 {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .calc-reins-sub,
+:root[data-theme="dark"] .calc-reins-legend {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .reins-card-item {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .reins-card-item.highlight-reins {
+  background: #2d2310;
+  border-color: #78350f;
+}
+
+:root[data-theme="dark"] .reins-val {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .reins-card-item.highlight-reins .reins-val {
+  color: #f59e0b;
+}
+
+:root[data-theme="dark"] .calc-reins-note {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-left-color: #f59e0b;
+}
+
 /* Summary Banner */
 .calc-summary-banner {
   background: #f8fafc;
@@ -3444,6 +3688,7 @@ body.modal-open {
   min-width: 220px;
   max-width: 550px;
   max-height: calc(100vh - 60px);
+  max-height: calc(100dvh - 60px);
   overflow: visible;
   pointer-events: auto;
   padding: 14px 18px;
@@ -3798,23 +4043,45 @@ body[data-active-tab="stats"] .interactive-colorbar {
     left: 50%;
     transform: translateX(-50%);
     top: auto;
-    bottom: 25px;
+    bottom: max(20px, calc(14px + env(safe-area-inset-bottom, 0px)));
     width: calc(100% - 28px);
     max-width: 480px;
     min-width: 0;
-    padding: 10px 14px;
+    padding: 10px 14px 14px 14px;
     z-index: 1000;
   }
 
+  /* Safe area padding for non-map tabs on mobile */
+  .dashboard-container {
+    padding-bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Ensure map attribution sits above mobile navigation/home bar */
+  .maplibregl-ctrl-bottom-right,
+  .mapboxgl-ctrl-bottom-right {
+    bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .interactive-colorbar.minimized {
+    width: auto !important;
+    min-width: 160px;
+    padding: 8px 14px;
+  }
+
   .colorbar-track-container {
-    height: 24px;
-    margin: 28px 8px 14px 8px;
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    margin: 36px 8px 24px 8px;
+    display: flex;
+    align-items: stretch;
   }
 
   .colorbar-track {
     width: 100%;
     height: 100%;
     flex-direction: row;
+    border-radius: 5px;
   }
 
   .color-band {
@@ -3827,9 +4094,12 @@ body[data-active-tab="stats"] .interactive-colorbar {
     top: -6px;
     bottom: auto !important;
     height: 36px;
-    width: 20px;
-    margin-left: -10px;
+    width: 24px;
+    margin-left: -12px;
+    margin-bottom: 0 !important;
     cursor: col-resize;
+    touch-action: none;
+    z-index: 10;
   }
 
   .colorbar-handle .handle-line {
@@ -3837,34 +4107,77 @@ body[data-active-tab="stats"] .interactive-colorbar {
     bottom: 0;
     left: auto;
     right: auto;
-    width: 3px;
+    width: 2px;
     height: 100%;
   }
 
   .colorbar-handle .handle-thumb {
-    width: 9px;
+    width: 10px;
     height: 18px;
+    border-radius: 3px;
   }
 
   .colorbar-handle .handle-tag {
     left: 50%;
     transform: translateX(-50%);
-    top: -26px;
+    top: -24px;
     font-size: 10px;
-    padding: 1px 5px;
+    padding: 1.5px 5px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 15;
+  }
+
+  .colorbar-handle:active .handle-tag,
+  .colorbar-handle.dragging .handle-tag {
+    background: #0284c7;
+    color: #ffffff;
+    z-index: 25;
   }
 
   .colorbar-limit.limit-min {
     left: 0;
-    bottom: -18px;
-    font-size: 10px;
+    bottom: -20px;
+    top: auto;
+    font-size: 10.5px;
   }
 
   .colorbar-limit.limit-max {
     left: auto;
     right: 0;
-    bottom: -18px;
+    bottom: -20px;
     top: auto;
-    font-size: 10px;
+    font-size: 10.5px;
+  }
+
+  .colorbar-zero-notice {
+    margin-top: 22px;
+    font-size: 10.5px;
+  }
+}
+
+/* Ensure MapLibre popups never block clicks or touches */
+.maplibregl-popup,
+.maplibregl-popup-content {
+  pointer-events: none !important;
+}
+
+@media (max-width: 800px) {
+  /* On mobile touchscreens, hide floating hover tooltips so they don't obstruct clicks */
+  .maplibregl-popup {
+    display: none !important;
+  }
+
+  .risk-card-backdrop {
+    padding: 10px;
+  }
+
+  .risk-card-modal {
+    max-height: 92dvh;
+    border-radius: 14px;
+  }
+
+  .risk-card-content {
+    padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px));
   }
 }

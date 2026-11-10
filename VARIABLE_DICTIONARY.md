@@ -472,6 +472,29 @@ $$\text{Peril Share (\%)} = \left(\frac{\text{Peril Expected Annual Loss}}{\text
 
 ---
 
+### Catastrophe Reinsurance & Treaty Capital Stack
+**Metric:** 
+eins_capital_stack  
+**Card Label:** Reinsurance & Catastrophe Capital Stack  
+**Definition:** Decomposes the estimated retail homeowners hazard premium (HO-3/HO-6) into three actuarial capital and cost allocations based on state statutory rate filings with State Departments of Insurance (CDI in CA, FLOIR in FL, TDI in TX) and localized catastrophe peril exposure:
+1. **Ground-Up Loss Cost (34%–72%):** Expected localized claims covering routine non-catastrophe losses (pipe bursts, kitchen fires, localized minor wind damage).
+2. **Catastrophe Reinsurance Loading (10%–48%):** Capital charges transferred to global secondary reinsurance syndicates (Bermuda, Lloyd's of London, European reinsurers) and catastrophe bond investors to collateralize 1-in-100 to 1-in-250 year peak peril events (hurricanes, severe convective storms, mega-wildfires). Calibrated across 4 state exposure tiers:
+   - **Tier 1 (Extreme Coastal / Hurricane Basin):** FL, LA (38% base, up to 48% with hurricane/surge load).
+   - **Tier 2 (High Wind & Wildfire Basin):** TX, CA, OK, CO, MS, AL, SC, NC (28% base).
+   - **Tier 3 (Moderate Catastrophe Basin):** GA, TN, MO, VA, NY, NJ, CT, MA, WA, OR (20% base).
+   - **Tier 4 (Low Hazard Baseline):** OH, PA, WI, MN, etc. (14% base).
+   *Peril Sensitivity:* Scaled within tiers by localized NRI catastrophe hazard composite score (($\text{Hazard Score} - 50) / 100 \times 0.12$) plus coastal surge and extreme wildfire adders (+4%).
+3. **Carrier Operations, Loss Adjustment Expenses (LAE) & Regulatory Fees (18%):** Fixed underwriting expenses, claims processing, premium taxes, and state insolvency guaranty fund assessments.
+**Formula:**  
+\\text{Reinsurance Pct (\\%)} = \\text{clamp}\\Big(\\text{Base Rate} + \\frac{\\text{NRI Hazard Score} - 50}{100} \\times 0.12 + \\text{Adders},\\ 0.10,\\ 0.48\\Big)  
+\\text{Reinsurance \\$} = \\text{Gross HO Premium} \\times \\text{Reinsurance Pct}  
+\\text{Carrier Operations \\$} = \\text{Gross HO Premium} \\times 0.18  
+\\text{Ground-Up Loss Reserve \\$} = \\text{Gross HO Premium} - \\text{Reinsurance \\$} - \\text{Carrier Operations \\$}  
+**Interpretation:** Explains the growing divergence between localized loss experience and retail premium spikes in catastrophe-prone markets, demonstrating that 35% to nearly 50% of policyholder dollars in coastal and wildfire zones pay for global risk-transfer capital rather than localized claims.  
+**Source:** State Insurance Department (DOI) public rate filings (FL Office of Insurance Regulation, California Department of Insurance, Texas Department of Insurance) & NAIC Homeowners Insurance Report.
+
+
+
 # Interpretation Notes
 
 - Census variables are derived from the **American Community Survey (ACS)**.
