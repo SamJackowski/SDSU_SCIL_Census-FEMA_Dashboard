@@ -1,509 +1,5 @@
 # Variable Dictionary
 
-This document describes the variables available in the **SDSU SCIL Census–FEMA Dashboard** (including U.S. Census, FEMA National Risk Index, and Global Climate & Disaster Risk modules).
-
-The dashboard combines:
-- **U.S. County, State & Tract Data:** Demographic and socioeconomic indicators from the **U.S. Census Bureau American Community Survey (ACS)** with natural hazard metrics from the **FEMA National Risk Index (NRI)** and disaster loss claims from the **FEMA National Flood Insurance Program (NFIP)**.
-- **Global Country-Level Data:** Multi-hazard crisis risk, water scarcity, economic resilience, climate adaptation, disaster casualties, and agricultural shock metrics from the **World Bank**, the **University of Notre Dame (ND-GAIN)**, **CRED EM-DAT**, **World Resources Institute (WRI Aqueduct)**, **UN OCHA (INFORM)**, and the **UN Food and Agriculture Organization (FAO)**.
-
----
-
-# Census Variables
-
-## Total Population
-**Variable:** `total_population`
-
-**Definition:** Estimated total resident population.
-
-**Unit:** People
-
-**Source:** U.S. Census Bureau American Community Survey (ACS)
-
----
-
-## Median Age
-**Variable:** `median_age`
-
-**Definition:** Median age of the resident population.
-
-**Unit:** Years
-
-**Source:** ACS
-
----
-
-## Population Under 18
-**Variable:** `under_18_population`
-
-**Definition:** Number of residents younger than 18 years.
-
-**Unit:** People
-
-**Source:** ACS
-
----
-
-## Population Under 18 (%)
-**Variable:** `under_18_pct`
-
-**Definition:** Percentage of residents younger than 18 years.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Population Age 65+
-**Variable:** `age_65_plus_population`
-
-**Definition:** Number of residents aged 65 years and older.
-
-**Unit:** People
-
-**Source:** ACS
-
----
-
-## Population Age 65+ (%)
-**Variable:** `age_65_plus_pct`
-
-**Definition:** Percentage of residents aged 65 years and older.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Employment Rate
-**Variable:** `employment_rate`
-
-**Definition:** Percentage of the working-age population that is employed.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Employment-to-Population Ratio
-**Variable:** `employment_population_ratio`
-
-**Definition:** Ratio of employed individuals to the total population.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Labor Force Participation Rate
-**Variable:** `labor_force_participation_rate`
-
-**Definition:** Percentage of the eligible population participating in the labor force.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Unemployment Rate
-**Variable:** `unemployment_rate`
-
-**Definition:** Percentage of the labor force that is unemployed.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Median Household Income
-**Variable:** `median_household_income`
-
-**Definition:** Median household income during the previous 12 months (inflation-adjusted).
-
-**Unit:** U.S. Dollars
-
-**Source:** ACS
-
----
-
-## Per Capita Income
-**Variable:** `per_capita_income`
-
-**Definition:** Average income per resident.
-
-**Unit:** U.S. Dollars
-
-**Source:** ACS
-
----
-
-## Poverty Rate
-**Variable:** `poverty_rate`
-
-**Definition:** Percentage of individuals living below the federal poverty line.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Gini Index
-**Variable:** `gini_index`
-
-**Definition:** Measure of income inequality ranging from 0 (perfect equality) to 1 (maximum inequality).
-
-**Unit:** Index
-
-**Source:** ACS
-
----
-
-## Less Than High School (%)
-**Variable:** `less_than_high_school_pct`
-
-**Definition:** Percentage of adults without a high school diploma.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## High School Graduate (%)
-**Variable:** `high_school_grad_pct`
-
-**Definition:** Percentage of adults whose highest educational attainment is a high school diploma.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Bachelor's Degree or Higher (%)
-**Variable:** `bachelors_or_higher_pct`
-
-**Definition:** Percentage of adults holding a bachelor's degree or higher.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Median Home Value
-**Variable:** `median_home_value`
-
-**Definition:** Median value of owner-occupied housing units.
-
-**Unit:** U.S. Dollars
-
-**Source:** ACS
-
----
-
-## Median Gross Rent
-**Variable:** `median_gross_rent`
-
-**Definition:** Median monthly gross rent.
-
-**Unit:** U.S. Dollars
-
-**Source:** ACS
-
----
-
-## Median Year Built
-**Variable:** `median_year_built`
-
-**Definition:** Median year in which occupied housing units were built.
-
-**Unit:** Year
-
-**Source:** ACS
-
----
-## Median Annual Homeowners Insurance
-**Variable:** `median_homeowners_insurance`
-
-**Definition:** Median annual homeowners insurance cost for owner-occupied housing units with a mortgage, computed via frequency bracket interpolation from Census ACS Table B25141. Note: ACS Table B25141 surveys all owner-occupied mortgaged units, combining single-family detached homes (HO-3 / HO-5) and condominiums / townhomes (HO-6 "walls-in"). In areas with significant condominium density, the tract median reflects this blended distribution, as condo unit-owner policies are substantially lower (~$400–$750/yr) due to HOA master policies covering exterior building structures.
-
-**Unit:** U.S. Dollars / Year
-
-**Source:** ACS (Table B25141)
-
----
-
-
-## Vacancy Rate
-**Variable:** `vacancy_rate`
-
-**Definition:** Percentage of housing units that are vacant.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Homeownership Rate
-**Variable:** `owner_occupied_pct`
-
-**Definition:** Percentage of occupied housing units that are owner occupied.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Renter Occupancy Rate
-**Variable:** `renter_occupied_pct`
-
-**Definition:** Percentage of occupied housing units that are renter occupied.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-## Households Without a Vehicle
-**Variable:** `no_vehicle_pct`
-
-**Definition:** Percentage of households with no available vehicle.
-
-**Unit:** Percent
-
-**Source:** ACS
-
----
-
-# FEMA National Risk Index Variables
-
-These variables originate from the **Federal Emergency Management Agency (FEMA) National Risk Index**.
-
-Unless otherwise noted:
-
-- Higher **risk scores** indicate greater modeled hazard risk.
-- Higher **expected annual loss** values indicate greater estimated annual economic losses.
-- Higher **annual frequency** values indicate hazards occur more frequently.
-
----
-
-# Overall Risk
-
-## FEMA Overall Risk Score
-**Variable:** `fema_risk_score`
-
-Composite FEMA National Risk Index score summarizing expected annual loss, social vulnerability, and community resilience.
-
----
-
-## FEMA Expected Annual Loss
-**Variable:** `fema_expected_annual_loss`
-
-Estimated average economic loss from all modeled natural hazards.
-
-**Unit:** USD/year
-
----
-
-## FEMA Social Vulnerability Score
-**Variable:** `fema_social_vulnerability_score`
-
-Score describing demographic and socioeconomic characteristics that may increase vulnerability during disasters.
-
----
-
-## FEMA Community Resilience Score
-**Variable:** `fema_resilience_score`
-
-Score representing a community's ability to prepare for, respond to, and recover from hazards.
-
----
-
-# Flood
-
-- `fema_flood_max_risk_score`
-- `fema_flood_expected_annual_loss`
-- `fema_coastal_flood_risk_score`
-- `fema_coastal_flood_expected_annual_loss`
-- `fema_inland_flood_risk_score`
-- `fema_inland_flood_expected_annual_loss`
-
-These variables quantify overall, coastal, and inland flood risk and expected annual economic loss.
-
----
-
-# Wildfire
-
-- `fema_wildfire_risk_score`
-- `fema_wildfire_expected_annual_loss`
-- `fema_wildfire_total_exposure`
-- `fema_wildfire_annual_frequency`
-- `fema_wildfire_risk_value`
-
-These variables describe wildfire hazard intensity, expected annual losses, exposed assets, event frequency, and modeled risk value.
-
----
-
-# Hurricane
-
-- `fema_hurricane_risk_score`
-- `fema_hurricane_expected_annual_loss`
-- `fema_hurricane_annual_frequency`
-
-Measures hurricane risk, expected losses, and modeled annual occurrence.
-
----
-
-# Earthquake
-
-- `fema_earthquake_risk_score`
-- `fema_earthquake_expected_annual_loss`
-- `fema_earthquake_annual_frequency`
-
-Measures earthquake hazard risk, expected losses, and annual probability of damaging events.
-
----
-
-# Tornado
-
-- `fema_tornado_risk_score`
-- `fema_tornado_expected_annual_loss`
-- `fema_tornado_annual_frequency`
-
-Measures tornado hazard risk, expected losses, and annual frequency.
-
----
-
-# Hail
-
-- `fema_hail_risk_score`
-- `fema_hail_expected_annual_loss`
-- `fema_hail_annual_frequency`
-
-Measures hail hazard risk, expected annual losses, and frequency.
-
----
-
-# Strong Wind
-
-- `fema_strong_wind_risk_score`
-- `fema_strong_wind_expected_annual_loss`
-- `fema_strong_wind_annual_frequency`
-
-Measures non-hurricane straight-line wind hazard.
-
----
-
-# Drought
-
-- `fema_drought_risk_score`
-- `fema_drought_expected_annual_loss`
-- `fema_drought_annual_frequency`
-
-Measures drought hazard risk and estimated annual frequency.
-
----
-
-# Heat Wave
-
-- `fema_heat_wave_risk_score`
-- `fema_heat_wave_expected_annual_loss`
-- `fema_heat_wave_annual_frequency`
-
-Measures heat wave hazard risk and estimated annual frequency.
-
----
-
----
-
-# Property Insurance & Actuarial Rate-Making Metrics
-
-### Indicative Pure Loss Cost Rate
-**Metric:** `indicative_loss_cost_rate`  
-**Card Label:** `Indicative Loss Cost Rate ($ per $1,000 TIV)`  
-**Definition:** The modeled annual expected pure loss cost per \$1,000 of insurable structural building exposure (Total Insured Value / TIV), strictly covering physical catastrophe damage before adding operating expenses, reinsurance margins, broker commissions, or carrier profit.  
-**Formula:**  
-$$\text{Loss Cost Rate} = \left(\frac{\text{Building Expected Annual Loss (EAL)}}{\text{Total Building Exposure Value}}\right) \times 1000$$  
-**Unit:** \$ per \$1,000 TIV (or basis points of asset value)  
-**Interpretation:** Direct baseline hurdle rate for property underwriters. For example, a rate of \$4.46 per \$1,000 indicates that an insurer expects \$2,230 in annualized catastrophe claim payouts for every \$500,000 of insured structural replacement value.  
-**Source:** FEMA National Risk Index (NRI) & Hazus Multi-Hazard Exposure Inventory  
-
----
-
-### Multi-Peril Expected Loss Composition
-**Metric:** `peril_loss_composition`  
-**Card Label:** `Average Annual Loss (AAL) Composition`  
-**Definition:** The proportional contribution (percentage share) of each distinct natural catastrophe peril to the total Expected Annual Loss (EAL) in a jurisdiction.  
-**Formula:**  
-$$\text{Peril Share (\%)} = \left(\frac{\text{Peril Expected Annual Loss}}{\text{Total Multi-Peril Expected Annual Loss}}\right) \times 100$$  
-**Unit:** Percentage (%) and Per-Peril Pure Loss Cost (\$ per \$1,000 TIV)  
-**Interpretation:** Identifies whether a property portfolio is single-peril dominant (e.g., 60%+ earthquake in California or flood in the Gulf Coast) or diversifies across independent perils (wind, convective storm, wildfire, flood).  
-**Source:** FEMA National Risk Index (NRI)  
-
----
-
-### FEMA Community Rating System (CRS) Class & Flood Discount
-**Metric:** `fema_crs_class`  
-**Card Label:** `FEMA CRS Classification & Flood Mitigation Profile`  
-**Definition:** Community-level flood mitigation rating under the National Flood Insurance Program (NFIP), categorized into 10 classes. Communities earn credit points for exceeding minimum NFIP standards through floodplain regulations, stormwater management, open-space preservation, and public awareness.  
-**Discount Schedule:**  
-- **Class 1 (4,500+ pts):** 45% premium discount in Special Flood Hazard Areas (SFHA)  
-- **Class 2 (4,000–4,499 pts):** 40% SFHA discount  
-- **Class 3 (3,500–3,999 pts):** 35% SFHA discount  
-- **Class 4 (3,000–3,499 pts):** 30% SFHA discount  
-- **Class 5 (2,500–2,999 pts):** 25% SFHA discount  
-- **Class 6 (2,000–2,499 pts):** 20% SFHA discount  
-- **Class 7 (1,500–1,999 pts):** 15% SFHA discount  
-- **Class 8 (1,000–1,499 pts):** 10% SFHA discount  
-- **Class 9 (500–999 pts):** 5% SFHA discount  
-- **Class 10 (0–499 pts / Non-participating):** 0% discount (Standard baseline NFIP rate)  
-**Interpretation:** High CRS classifications (Classes 1–5) demonstrate superior local infrastructure resiliency, proactive stormwater standards, and substantially reduced structural flood loss frequency.  
-**Source:** FEMA NFIP Community Rating System (CRS) & FEMA NRI Community Resilience (HVRI BRIC)
-
----
-
-### Catastrophe Reinsurance & Treaty Capital Stack
-**Metric:** 
-eins_capital_stack  
-**Card Label:** Reinsurance & Catastrophe Capital Stack  
-**Definition:** Decomposes the estimated retail homeowners hazard premium (HO-3/HO-6) into three actuarial capital and cost allocations based on state statutory rate filings with State Departments of Insurance (CDI in CA, FLOIR in FL, TDI in TX) and localized catastrophe peril exposure:
-1. **Ground-Up Loss Cost (34%–72%):** Expected localized claims covering routine non-catastrophe losses (pipe bursts, kitchen fires, localized minor wind damage).
-2. **Catastrophe Reinsurance Loading (10%–48%):** Capital charges transferred to global secondary reinsurance syndicates (Bermuda, Lloyd's of London, European reinsurers) and catastrophe bond investors to collateralize 1-in-100 to 1-in-250 year peak peril events (hurricanes, severe convective storms, mega-wildfires). Calibrated across 4 state exposure tiers:
-   - **Tier 1 (Extreme Coastal / Hurricane Basin):** FL, LA (38% base, up to 48% with hurricane/surge load).
-   - **Tier 2 (High Wind & Wildfire Basin):** TX, CA, OK, CO, MS, AL, SC, NC (28% base).
-   - **Tier 3 (Moderate Catastrophe Basin):** GA, TN, MO, VA, NY, NJ, CT, MA, WA, OR (20% base).
-   - **Tier 4 (Low Hazard Baseline):** OH, PA, WI, MN, etc. (14% base).
-   *Peril Sensitivity:* Scaled within tiers by localized NRI catastrophe hazard composite score (($\text{Hazard Score} - 50) / 100 \times 0.12$) plus coastal surge and extreme wildfire adders (+4%).
-3. **Carrier Operations, Loss Adjustment Expenses (LAE) & Regulatory Fees (18%):** Fixed underwriting expenses, claims processing, premium taxes, and state insolvency guaranty fund assessments.
-**Formula:**  
-\\text{Reinsurance Pct (\\%)} = \\text{clamp}\\Big(\\text{Base Rate} + \\frac{\\text{NRI Hazard Score} - 50}{100} \\times 0.12 + \\text{Adders},\\ 0.10,\\ 0.48\\Big)  
-\\text{Reinsurance \\$} = \\text{Gross HO Premium} \\times \\text{Reinsurance Pct}  
-\\text{Carrier Operations \\$} = \\text{Gross HO Premium} \\times 0.18  
-\\text{Ground-Up Loss Reserve \\$} = \\text{Gross HO Premium} - \\text{Reinsurance \\$} - \\text{Carrier Operations \\$}  
-**Interpretation:** Explains the growing divergence between localized loss experience and retail premium spikes in catastrophe-prone markets, demonstrating that 35% to nearly 50% of policyholder dollars in coastal and wildfire zones pay for global risk-transfer capital rather than localized claims.  
-**Source:** State Insurance Department (DOI) public rate filings (FL Office of Insurance Regulation, California Department of Insurance, Texas Department of Insurance) & NAIC Homeowners Insurance Report.
-
-
-
-# Interpretation Notes
-
-- Census variables are derived from the **American Community Survey (ACS)**.
-- FEMA variables are derived from the **FEMA National Risk Index (NRI)**.
-- Expected annual loss variables are estimates of long-term average annual economic loss.
-- Risk scores are relative measures and should generally be interpreted by comparing counties rather than as absolute values.
-=======
-# Variable Dictionary
-
 This document describes the variables available in the **SDSU SCIL Census–FEMA Dashboard**.
 
 The dashboard combines county-level demographic and socioeconomic indicators from the **U.S. Census Bureau American Community Survey (ACS)** with natural hazard metrics from the **FEMA National Risk Index (NRI)**.
@@ -912,7 +408,7 @@ Measures non-hurricane straight-line wind hazard.
 - `fema_drought_expected_annual_loss`
 - `fema_drought_annual_frequency`
 
-Measures drought hazard risk and estimated annual frequency.
+**Definition & Methodology:** Measures drought hazard risk and estimated annualized frequency. In the FEMA National Risk Index (NRI) Technical Model, drought is a continuous, long-duration hazard rather than a discrete short-term event (like a tornado or hail storm). FEMA NRI therefore quantifies drought frequency in **event-days per year** (days/yr) using historical records from the U.S. Drought Monitor (USDM) and NCEI. An annual frequency of, e.g., 57.4 reflects the **average number of active drought event-days per year** experienced by that county.
 
 ---
 
@@ -1367,6 +863,133 @@ The global module provides country-level indicators across 190+ sovereign states
 
 ---
 
+---
+
+# Property Insurance & Actuarial Rate-Making Metrics
+
+### Indicative Pure Loss Cost Rate
+**Metric:** `indicative_loss_cost_rate`  
+**Card Label:** `Indicative Loss Cost Rate ($ per $1,000 TIV)`  
+**Definition:** The modeled annual expected pure loss cost per \$1,000 of insurable structural building exposure (Total Insured Value / TIV), strictly covering physical catastrophe damage before adding operating expenses, reinsurance margins, broker commissions, or carrier profit.  
+**Formula:**  
+$$\text{Loss Cost Rate} = \left(\frac{\text{Building Expected Annual Loss (EAL)}}{\text{Total Building Exposure Value}}\right) \times 1000$$  
+**Unit:** \$ per \$1,000 TIV (or basis points of asset value)  
+**Interpretation:** Direct baseline hurdle rate for property underwriters. For example, a rate of \$4.46 per \$1,000 indicates that an insurer expects \$2,230 in annualized catastrophe claim payouts for every \$500,000 of insured structural replacement value.  
+**Source:** FEMA National Risk Index (NRI) & Hazus Multi-Hazard Exposure Inventory  
+
+---
+
+### Multi-Peril Expected Loss Composition
+**Metric:** `peril_loss_composition`  
+**Card Label:** `Average Annual Loss (AAL) Composition`  
+**Definition:** The proportional contribution (percentage share) of each distinct natural catastrophe peril to the total Expected Annual Loss (EAL) in a jurisdiction.  
+**Formula:**  
+$$\text{Peril Share (\%)} = \left(\frac{\text{Peril Expected Annual Loss}}{\text{Total Multi-Peril Expected Annual Loss}}\right) \times 100$$  
+**Unit:** Percentage (%) and Per-Peril Pure Loss Cost (\$ per \$1,000 TIV)  
+**Interpretation:** Identifies whether a property portfolio is single-peril dominant (e.g., 60%+ earthquake in California or flood in the Gulf Coast) or diversifies across independent perils (wind, convective storm, wildfire, flood).  
+**Source:** FEMA National Risk Index (NRI)  
+
+---
+
+### FEMA Community Rating System (CRS) Class & Flood Discount
+**Metric:** `fema_crs_class`  
+**Card Label:** `FEMA CRS Classification & Flood Mitigation Profile`  
+**Definition:** Community-level flood mitigation rating under the National Flood Insurance Program (NFIP), categorized into 10 classes. Communities earn credit points for exceeding minimum NFIP standards through floodplain regulations, stormwater management, open-space preservation, and public awareness.  
+**Discount Schedule:**  
+- **Class 1 (4,500+ pts):** 45% premium discount in Special Flood Hazard Areas (SFHA)  
+- **Class 2 (4,000–4,499 pts):** 40% SFHA discount  
+- **Class 3 (3,500–3,999 pts):** 35% SFHA discount  
+- **Class 4 (3,000–3,499 pts):** 30% SFHA discount  
+- **Class 5 (2,500–2,999 pts):** 25% SFHA discount  
+- **Class 6 (2,000–2,499 pts):** 20% SFHA discount  
+- **Class 7 (1,500–1,999 pts):** 15% SFHA discount  
+- **Class 8 (1,000–1,499 pts):** 10% SFHA discount  
+- **Class 9 (500–999 pts):** 5% SFHA discount  
+- **Class 10 (0–499 pts / Non-participating):** 0% discount (Standard baseline NFIP rate)  
+**Interpretation:** High CRS classifications (Classes 1–5) demonstrate superior local infrastructure resiliency, proactive stormwater standards, and substantially reduced structural flood loss frequency.  
+**Source:** FEMA NFIP Community Rating System (CRS) & FEMA NRI Community Resilience (HVRI BRIC)
+
+---
+
+### Catastrophe Reinsurance & Treaty Capital Stack
+**Metric:** 
+eins_capital_stack  
+**Card Label:** Reinsurance & Catastrophe Capital Stack  
+**Definition:** Decomposes the estimated retail homeowners hazard premium (HO-3/HO-6) into three actuarial capital and cost allocations based on state statutory rate filings with State Departments of Insurance (CDI in CA, FLOIR in FL, TDI in TX) and localized catastrophe peril exposure:
+1. **Ground-Up Loss Cost (34%–72%):** Expected localized claims covering routine non-catastrophe losses (pipe bursts, kitchen fires, localized minor wind damage).
+2. **Catastrophe Reinsurance Loading (10%–48%):** Capital charges transferred to global secondary reinsurance syndicates (Bermuda, Lloyd's of London, European reinsurers) and catastrophe bond investors to collateralize 1-in-100 to 1-in-250 year peak peril events (hurricanes, severe convective storms, mega-wildfires). Calibrated across 4 state exposure tiers:
+   - **Tier 1 (Extreme Coastal / Hurricane Basin):** FL, LA (38% base, up to 48% with hurricane/surge load).
+   - **Tier 2 (High Wind & Wildfire Basin):** TX, CA, OK, CO, MS, AL, SC, NC (28% base).
+   - **Tier 3 (Moderate Catastrophe Basin):** GA, TN, MO, VA, NY, NJ, CT, MA, WA, OR (20% base).
+   - **Tier 4 (Low Hazard Baseline):** OH, PA, WI, MN, etc. (14% base).
+   *Peril Sensitivity:* Scaled within tiers by localized NRI catastrophe hazard composite score (($\text{Hazard Score} - 50) / 100 \times 0.12$) plus coastal surge and extreme wildfire adders (+4%).
+3. **Carrier Operations, Loss Adjustment Expenses (LAE) & Regulatory Fees (18%):** Fixed underwriting expenses, claims processing, premium taxes, and state insolvency guaranty fund assessments.
+**Formula:**  
+\\text{Reinsurance Pct (\\%)} = \\text{clamp}\\Big(\\text{Base Rate} + \\frac{\\text{NRI Hazard Score} - 50}{100} \\times 0.12 + \\text{Adders},\\ 0.10,\\ 0.48\\Big)  
+\\text{Reinsurance \\$} = \\text{Gross HO Premium} \\times \\text{Reinsurance Pct}  
+\\text{Carrier Operations \\$} = \\text{Gross HO Premium} \\times 0.18  
+\\text{Ground-Up Loss Reserve \\$} = \\text{Gross HO Premium} - \\text{Reinsurance \\$} - \\text{Carrier Operations \\$}  
+**Interpretation:** Explains the growing divergence between localized loss experience and retail premium spikes in catastrophe-prone markets, demonstrating that 35% to nearly 50% of policyholder dollars in coastal and wildfire zones pay for global risk-transfer capital rather than localized claims.  
+**Source:** State Insurance Department (DOI) public rate filings (FL Office of Insurance Regulation, California Department of Insurance, Texas Department of Insurance) & NAIC Homeowners Insurance Report.
+
+---
+
+# Agricultural Crop Risk & Federal Crop Insurance Metrics
+
+### Commercial Cropland Exposure (USDA RMA & Census of Agriculture)
+**Metric:** `fema_drought_total_exposure`, `fema_inland_flood_agriculture_exposure`, `fema_wildfire_agriculture_exposure`  
+**Card Label:** Commercial Cropland Exposure  
+**Definition:** The total dollar asset valuation of commercial agricultural cropland exposed to multi-peril natural hazard risks within the county jurisdiction, established from the USDA Census of Agriculture baseline and USDA Risk Management Agency (RMA) crop records.  
+**Unit:** USD (\$)  
+**Interpretation:** Represents the total commercial crop asset base subject to environmental and climatological yield collapse. Evaluated against residential building exposure to determine whether a jurisdiction is an agrarian basin or an urban metropolitan core.  
+**Source:** USDA National Agricultural Statistics Service (NASS), USDA RMA, and FEMA National Risk Index (NRI).
+
+---
+
+### Total Agricultural Expected Annual Loss (Crop EAL)
+**Metric:** `fema_drought_expected_annual_loss` + `fema_inland_flood_agriculture_eal` + `fema_wildfire_agriculture_eal`  
+**Card Label:** Annual Crop Expected Loss (EAL)  
+**Definition:** The long-term modeled average annual economic loss (in USD) sustained by agricultural crop yields from multi-peril hazard vectors:
+1. **Drought & Crop Desiccation:** Direct soil moisture deficits and hydrological drought modeled from USDA RMA historical crop indemnity disbursements.
+2. **Inland Flood & Excess Moisture:** Riverine inundation, ponding, and field flooding damaging root systems and preventing planting or harvest.
+3. **Wildfire Cropland Scorching:** Agricultural perimeter burn-over, smoke taint, and field combustion.  
+**Unit:** USD / year (\$/yr)  
+**Interpretation:** Establishes the expected annual indemnity burn rate for commercial agriculture in the county, serving as the actuarial foundation for crop insurance rate-making.  
+**Source:** FEMA NRI Multi-Hazard Model calibrated with USDA RMA 30-year indemnity claims.
+
+---
+
+### Indicative Crop Pure Loss Rate
+**Metric:** `ag_loss_cost_rate = (Total Ag EAL / Commercial Cropland Exposure) * 1,000`  
+**Card Label:** Indicative Crop Pure Loss Rate  
+**Definition:** Modeled pure catastrophic burn rate per \$1,000 of commercial cropland valuation.  
+**Unit:** \$ per \$1,000 crop value (or pure loss percentage when divided by 10)  
+**Tiers:**
+- **Very High:** > \$35 / \$1,000 crop value (or FEMA Drought Rating 'Very High'). High probability of acute yield collapse requiring extensive federal crop reinsurance reserves (e.g. California Central Valley, Western Corn Belt).
+- **High:** \$20 – \$35 / \$1,000. Significant climatological yield volatility.
+- **Moderate:** \$8 – \$20 / \$1,000. Typical Midwestern crop baseline with periodic weather-induced losses.
+- **Low / Negligible:** < \$8 / \$1,000. Stable hydrological conditions or negligible commercial cropland footprint (< \$100,000).  
+**Interpretation:** Directly comparable to the property insurance pure loss cost rate, allowing underwriters, agricultural lenders, and regional policymakers to benchmark crop exposure against structural building exposure.  
+**Source:** SDSU SCIL Actuarial Risk Engine & USDA RMA FCIP calibration.
+
+---
+
+### Peril-Specific Agricultural Loss Rates
+**Metric:** `fema_inland_flood_agriculture_loss_rate`, `fema_wildfire_agriculture_loss_rate`  
+**Definition:** The hazard-specific pure loss rate representing the fraction of cropland value destroyed annually by inland flooding or wildfire. Displayed as \$ loss per \$1,000 of exposed cropland valuation.  
+**Unit:** \$ per \$1,000 crop value  
+**Source:** FEMA National Risk Index (NRI)
+
+---
+
+### Federal Crop Insurance Program (FCIP) Underwriting & Subsidy Mechanism
+**Card Label:** USDA RMA FCIP Underwriting Context  
+**Definition:** Under the Federal Crop Insurance Act, multi-peril crop insurance (MPCI)—such as Yield Protection (YP) and Revenue Protection (RP)—is sold and serviced by private Approved Insurance Providers (AIPs) but reinsured and subsidized by the Federal Crop Insurance Corporation (FCIC) administered by the USDA Risk Management Agency (RMA).
+- **Standard Premium Subsidy:** Across major commercial crops (corn, soybeans, wheat, cotton, almonds, grapes), the federal government subsidizes an average of **60% to 65%** of the gross actuarial premium to ensure universal coverage.
+- **Catastrophic Risk Backstop:** In extreme drought or regional inundation years, private AIPs are protected by federal standard reinsurance agreements (SRA), shielding local agricultural economies from systemic insolvency.
+
+---
+
 # Interpretation Notes
 
 ### U.S. Census & FEMA Data
@@ -1382,4 +1005,3 @@ The global module provides country-level indicators across 190+ sovereign states
 - **WRI Aqueduct Projections:** Water stress baseline scores reflect 2024 conditions; 2050 optimistic (SSP1-RCP2.6) and pessimistic (SSP3-RCP8.5) scenarios capture alternative global decarbonization trajectories.
 - **ND-GAIN Resilience vs. Vulnerability:** In ND-GAIN, higher **Readiness** and **ND-GAIN Index** scores represent better resilience, whereas higher **Vulnerability** scores represent greater climate exposure and harm potential.
 - **INFORM Multi-Hazard Index:** Follows the Sendai Framework for Disaster Risk Reduction, balancing physical hazards against social vulnerability and governance deficits.
-

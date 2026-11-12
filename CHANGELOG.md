@@ -53,5 +53,10 @@
 
 ## Version 1.1.4.1 (10/30/2026)
 - Greatly reworked insurance popup to include calculator to estimate home insurance rates (BETA)
-- Reworked colorbar to allow users to make custom ranges for enhanced data exploration 
+- Reworked colorbar to allow users to make custom ranges for enhanced data exploration
 
+## Version 1.1.5 (11/12/2026)
+- Split variable selection dropdown into 3 dedicated category tabs: Census, FEMA Risk, and Agriculture
+- Added dedicated Agriculture choropleth suite: Commercial Cropland Asset Exposure ($), Total Agricultural Crop EAL ($/yr), Indicative Crop Pure Loss Rate ($ / $1k), Inland Flood Ag EAL, and Wildfire Ag EAL
+- Added Agricultural Crop Risk & Federal Crop Insurance Exposure Dossier to county underwriting cards with interactive Donut / Pie Chart
+- Optimized mobile responsive layout, colorbar height, and touch event handling

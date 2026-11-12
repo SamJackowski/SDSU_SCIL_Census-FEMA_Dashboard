@@ -387,8 +387,65 @@ export function createRiskCard(ctx) {
     // Sort perils by Expected Annual Loss descending
     perils.sort((a, b) => (Number(b.eal) || 0) - (Number(a.eal) || 0));
 
+    // Commercial Agricultural Cropland Risk & USDA RMA Crop Insurance Profile
+    const droughtExp = Number(row.fema_drought_total_exposure) || 0;
+    const floodAgExp = Number(row.fema_inland_flood_agriculture_exposure) || 0;
+    const wildfireAgExp = Number(row.fema_wildfire_agriculture_exposure) || 0;
+    const agExposure = Math.max(droughtExp, floodAgExp, wildfireAgExp);
+
+    const droughtEal = Number(row.fema_drought_expected_annual_loss) || 0;
+    const floodAgEal = Number(row.fema_inland_flood_agriculture_eal) || 0;
+    const wildfireAgEal = Number(row.fema_wildfire_agriculture_eal) || 0;
+    const totalAgEal = droughtEal + floodAgEal + wildfireAgEal;
+
+    const agLossCostRate = agExposure > 0 ? (totalAgEal / agExposure) * 1000 : 0;
+    const droughtFreq = Number(row.fema_drought_annual_frequency) || 0;
+    const droughtScore = Number(row.fema_drought_risk_score) || 0;
+    const droughtRating = row.fema_drought_risk_rating || "No Rating";
+
+    let agRiskTier = "Negligible";
+    let agBadgeClass = "badge-none";
+    if (agExposure >= 100000) {
+      if (agLossCostRate >= 35 || droughtRating === "Very High") {
+        agRiskTier = "Very High";
+        agBadgeClass = "badge-vhigh";
+      } else if (agLossCostRate >= 20 || droughtRating === "Relatively High") {
+        agRiskTier = "High";
+        agBadgeClass = "badge-high";
+      } else if (agLossCostRate >= 8 || droughtRating === "Relatively Moderate") {
+        agRiskTier = "Moderate";
+        agBadgeClass = "badge-mod";
+      } else {
+        agRiskTier = "Low";
+        agBadgeClass = "badge-low";
+      }
+    }
+
+    const agriculture = {
+      isCountyBenchmark: false,
+      hasAgriculture: agExposure >= 100000,
+      exposure: agExposure,
+      droughtExp,
+      floodAgExp,
+      wildfireAgExp,
+      totalAgEal,
+      droughtEal,
+      floodAgEal,
+      wildfireAgEal,
+      agLossCostRate,
+      droughtFreq,
+      droughtScore,
+      droughtRating,
+      agRiskTier,
+      agBadgeClass,
+      droughtShare: totalAgEal > 0 ? (droughtEal / totalAgEal) * 100 : 0,
+      floodShare: totalAgEal > 0 ? (floodAgEal / totalAgEal) * 100 : 0,
+      wildfireShare: totalAgEal > 0 ? (wildfireAgEal / totalAgEal) * 100 : 0,
+    };
+
     return {
       geographyType: "County",
+      agriculture,
       geoid: targetFips,
       locationName: `${countyName}, ${stateName}`,
       year: row.year || state.year || 2023,
@@ -655,8 +712,65 @@ export function createRiskCard(ctx) {
       ? scoreToRating(tractValues.fema_resilience_score)
       : (parentCountyRow.fema_resilience_rating || "-");
 
+    // Parent County Agricultural Cropland Benchmark
+    const droughtExp = Number(parentCountyRow.fema_drought_total_exposure) || 0;
+    const floodAgExp = Number(parentCountyRow.fema_inland_flood_agriculture_exposure) || 0;
+    const wildfireAgExp = Number(parentCountyRow.fema_wildfire_agriculture_exposure) || 0;
+    const agExposure = Math.max(droughtExp, floodAgExp, wildfireAgExp);
+
+    const droughtEal = Number(parentCountyRow.fema_drought_expected_annual_loss) || 0;
+    const floodAgEal = Number(parentCountyRow.fema_inland_flood_agriculture_eal) || 0;
+    const wildfireAgEal = Number(parentCountyRow.fema_wildfire_agriculture_eal) || 0;
+    const totalAgEal = droughtEal + floodAgEal + wildfireAgEal;
+
+    const agLossCostRate = agExposure > 0 ? (totalAgEal / agExposure) * 1000 : 0;
+    const droughtFreq = Number(parentCountyRow.fema_drought_annual_frequency) || 0;
+    const droughtScore = Number(parentCountyRow.fema_drought_risk_score) || 0;
+    const droughtRating = parentCountyRow.fema_drought_risk_rating || "No Rating";
+
+    let agRiskTier = "Negligible";
+    let agBadgeClass = "badge-none";
+    if (agExposure >= 100000) {
+      if (agLossCostRate >= 35 || droughtRating === "Very High") {
+        agRiskTier = "Very High";
+        agBadgeClass = "badge-vhigh";
+      } else if (agLossCostRate >= 20 || droughtRating === "Relatively High") {
+        agRiskTier = "High";
+        agBadgeClass = "badge-high";
+      } else if (agLossCostRate >= 8 || droughtRating === "Relatively Moderate") {
+        agRiskTier = "Moderate";
+        agBadgeClass = "badge-mod";
+      } else {
+        agRiskTier = "Low";
+        agBadgeClass = "badge-low";
+      }
+    }
+
+    const agriculture = {
+      isCountyBenchmark: true,
+      hasAgriculture: agExposure >= 100000,
+      exposure: agExposure,
+      droughtExp,
+      floodAgExp,
+      wildfireAgExp,
+      totalAgEal,
+      droughtEal,
+      floodAgEal,
+      wildfireAgEal,
+      agLossCostRate,
+      droughtFreq,
+      droughtScore,
+      droughtRating,
+      agRiskTier,
+      agBadgeClass,
+      droughtShare: totalAgEal > 0 ? (droughtEal / totalAgEal) * 100 : 0,
+      floodShare: totalAgEal > 0 ? (floodAgEal / totalAgEal) * 100 : 0,
+      wildfireShare: totalAgEal > 0 ? (wildfireAgEal / totalAgEal) * 100 : 0,
+    };
+
     return {
       geographyType: "Census Tract",
+      agriculture,
       geoid: fullGeoid,
       locationName: `${tractShort}, ${countyName}, ${stateName}`,
       parentCountyName: `${countyName}, ${stateName}`,
@@ -1379,6 +1493,48 @@ function renderCardModal(data) {
         }).join(", ")
       : "#94a3b8 0% 100%";
 
+    // Compute Agricultural Multi-Peril Loss Donut Gradient & Chips
+    let agriConicGradientStyle = "#94a3b8 0% 100%";
+    let agriDisplayPerils = [];
+    if (data.agriculture && data.agriculture.hasAgriculture) {
+      agriDisplayPerils = [
+        {
+          name: "Drought & Desiccation",
+          color: "#f59e0b",
+          eal: data.agriculture.droughtEal,
+          share: data.agriculture.droughtShare,
+          rate: data.agriculture.exposure > 0 ? (data.agriculture.droughtEal / data.agriculture.exposure) * 1000 : 0,
+        },
+        {
+          name: "Inland Flood & Excess Moisture",
+          color: "#3b82f6",
+          eal: data.agriculture.floodAgEal,
+          share: data.agriculture.floodShare,
+          rate: data.agriculture.exposure > 0 ? (data.agriculture.floodAgEal / data.agriculture.exposure) * 1000 : 0,
+        },
+        {
+          name: "Wildfire Cropland Damage",
+          color: "#ef4444",
+          eal: data.agriculture.wildfireAgEal,
+          share: data.agriculture.wildfireShare,
+          rate: data.agriculture.exposure > 0 ? (data.agriculture.wildfireAgEal / data.agriculture.exposure) * 1000 : 0,
+        },
+      ];
+
+      // Sort by EAL descending so dominant agricultural peril comes first
+      agriDisplayPerils.sort((a, b) => (Number(b.eal) || 0) - (Number(a.eal) || 0));
+
+      let agriGradientAcc = 0;
+      if (data.agriculture.totalAgEal > 0) {
+        agriConicGradientStyle = agriDisplayPerils.map((p, idx) => {
+          const start = agriGradientAcc;
+          agriGradientAcc += p.share;
+          const end = (idx === agriDisplayPerils.length - 1) ? 100 : agriGradientAcc;
+          return `${p.color} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
+        }).join(", ");
+      }
+    }
+
     content.innerHTML = `
       <div class="risk-card-print-header">
         <div class="print-brand">iCHARMrisk | Catastrophe Risk &amp; Underwriting Assessment Report</div>
@@ -2030,6 +2186,121 @@ function renderCardModal(data) {
           </div>
         </div>
 
+        <!-- Agricultural Crop Risk & Federal Crop Insurance Exposure Dossier -->
+        ${data.agriculture ? `
+        <div class="risk-card-section agri-card-section">
+          <div class="section-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 style="margin: 0;">Agricultural Crop Risk &amp; Crop Insurance Dossier</h3>
+                <span class="agri-risk-badge ${data.agriculture.agBadgeClass}">${data.agriculture.agRiskTier} Ag Risk</span>
+                ${data.agriculture.isCountyBenchmark ? '<span class="agri-benchmark-tag">County Basin Benchmark</span>' : ''}
+              </div>
+              <span class="section-sub">USDA Risk Management Agency (RMA) &amp; FEMA NRI • Commercial cropland exposure &amp; pure loss cost baseline</span>
+            </div>
+          </div>
+
+          ${data.agriculture.hasAgriculture ? `
+          <div class="agri-kpi-grid">
+            <div class="agri-kpi-card">
+              <div class="agri-kpi-label">Commercial Cropland Exposure</div>
+              <div class="agri-kpi-value">${formatCurrency(data.agriculture.exposure)}</div>
+              <div class="agri-kpi-sub">USDA Census of Agriculture crop asset base</div>
+            </div>
+            <div class="agri-kpi-card">
+              <div class="agri-kpi-label">Annual Crop Expected Loss (EAL)</div>
+              <div class="agri-kpi-value">${formatCurrency(data.agriculture.totalAgEal)} <span class="agri-kpi-unit">/yr</span></div>
+              <div class="agri-kpi-sub">Multi-peril agricultural modeled damages</div>
+            </div>
+            <div class="agri-kpi-card">
+              <div class="agri-kpi-label">Indicative Crop Pure Loss Rate</div>
+              <div class="agri-kpi-value">$${data.agriculture.agLossCostRate.toFixed(2)} <span class="agri-kpi-unit">/ $1k crop</span></div>
+              <div class="agri-kpi-sub">Annualized pure burn rate (${(data.agriculture.agLossCostRate / 10).toFixed(2)}%)</div>
+            </div>
+            <div class="agri-kpi-card">
+              <div class="agri-kpi-label">Drought Hazard Duration</div>
+              <div class="agri-kpi-value">${data.agriculture.droughtFreq > 0 ? data.agriculture.droughtFreq.toFixed(1) + ' days/yr' : 'Low Freq'}</div>
+              <div class="agri-kpi-sub">FEMA NRI event-days • <strong>${ctx.escapeHtml(data.agriculture.droughtRating)}</strong></div>
+            </div>
+          </div>
+
+          <!-- Multi-Peril Agricultural Hazard Distribution (Donut Pie Chart Layout) -->
+          <div class="loss-comp-container" style="margin: 14px 0 16px 0;">
+            <div class="loss-comp-header">
+              <div>
+                <span class="loss-comp-title">Multi-Peril Crop Hazard Loss Distribution</span>
+                <span class="loss-comp-subtitle">Annual expected agricultural crop damages by peril vector</span>
+              </div>
+              <div class="loss-comp-total-badge">
+                <strong>Total Ag EAL: ${formatCurrency(data.agriculture.totalAgEal)}/yr</strong>
+                <span class="loss-comp-total-rate"> • $${data.agriculture.agLossCostRate.toFixed(2)} / $1k crop</span>
+              </div>
+            </div>
+
+            <div class="loss-pie-layout">
+              <!-- Visual Donut / Pie Chart -->
+              <div class="loss-donut-wrap">
+                <div class="loss-donut-chart" style="background: conic-gradient(${agriConicGradientStyle});">
+                  <div class="loss-donut-center">
+                    <span class="loss-donut-center-lbl">CROP EAL</span>
+                    <strong class="loss-donut-center-val">${formatCurrency(data.agriculture.totalAgEal)}</strong>
+                    <span class="loss-donut-center-sub">$${data.agriculture.agLossCostRate.toFixed(2)} / $1k</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Loss Breakdown Chips -->
+              <div class="loss-pie-breakdown">
+                <div class="loss-pie-grid">
+                  ${agriDisplayPerils.map(p => `
+                    <div class="loss-pie-chip" title="${ctx.escapeHtml(p.name)}: ${p.share.toFixed(1)}% (${formatCurrency(p.eal)}/yr)">
+                      <div class="loss-chip-top">
+                        <div class="loss-chip-title">
+                          <span class="loss-comp-dot" style="background: ${p.color};"></span>
+                          <span class="loss-comp-name">${ctx.escapeHtml(p.name)}</span>
+                        </div>
+                        <span class="loss-chip-pct">${p.share >= 0.1 ? p.share.toFixed(1) + '%' : '<0.1%'}</span>
+                      </div>
+                      <div class="loss-chip-bottom">
+                        <div class="loss-chip-dollars">
+                          <strong>${formatCurrency(p.eal)}</strong><span class="loss-chip-sub">/yr</span>
+                        </div>
+                        <span class="loss-chip-rate">${p.rate != null ? (p.rate >= 0.01 ? '$' + p.rate.toFixed(2) : '<$0.01') + '/$1k crop' : '-'}</span>
+                      </div>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FCIP / USDA RMA Policy Underwriting Context -->
+          <div class="agri-narrative-box">
+            <div class="agri-narrative-header">
+              <span class="agri-narrative-icon">🌾</span>
+              <strong>Federal Crop Insurance Corporation (FCIP) Underwriting &amp; Subsidy Context</strong>
+            </div>
+            <p class="agri-narrative-text">
+              Unlike residential homeowners policies, commercial crop risk is backstopped through public-private partnerships under the Federal Crop Insurance Act administered by the USDA Risk Management Agency (RMA). Standard Multi-Peril Crop Insurance (MPCI)—including Yield Protection (YP) and Revenue Protection (RP)—transfers yield collapse and commodity price volatility to private Approved Insurance Providers (AIPs).
+            </p>
+            <div class="agri-underwrite-meta">
+              <div class="agri-meta-pill"><strong>Pure Loss Baseline:</strong> $${data.agriculture.agLossCostRate.toFixed(2)} per $1k cropland</div>
+              <div class="agri-meta-pill"><strong>Avg RMA Federal Premium Subsidy:</strong> 60% – 65%</div>
+              <div class="agri-meta-pill"><strong>Primary Peril Driver:</strong> ${data.agriculture.droughtShare >= data.agriculture.floodShare && data.agriculture.droughtShare >= data.agriculture.wildfireShare ? 'Drought / Water Scarcity' : (data.agriculture.floodShare >= data.agriculture.wildfireShare ? 'Inland Flood / Excess Moisture' : 'Wildfire')}</div>
+            </div>
+          </div>
+          ` : `
+          <div class="agri-urban-notice">
+            <div class="agri-urban-icon">🏙️</div>
+            <div class="agri-urban-body">
+              <strong>Urban or Non-Commercial Agricultural Jurisdiction</strong>
+              <p>Total reported commercial cropland exposure in this jurisdiction is negligible (&lt; $100,000). Economic catastrophe loss is primarily concentrated in physical residential/commercial structures and infrastructure rather than agricultural commodities. USDA RMA Federal Crop Insurance Program (FCIP) policies are not materially active here.</p>
+            </div>
+          </div>
+          `}
+        </div>
+        ` : ""}
+
         <!-- Community Exposure & Demographics -->
         <div class="risk-card-section">
           <div class="section-header">
@@ -2477,6 +2748,19 @@ function renderCardModal(data) {
       ["SFHA Flood Mitigation Discount", data.crs ? data.crs.discount : ""],
       ["Non-SFHA Flood Mitigation Discount", data.crs ? data.crs.nonSfhaDiscount : ""],
       ["CRS Classification Status", data.crs ? data.crs.type : ""],
+      ...(data.agriculture && data.agriculture.hasAgriculture ? [
+        [],
+        ["--- AGRICULTURAL CROP RISK & FEDERAL CROP INSURANCE DOSSIER (USDA RMA / FEMA NRI) ---"],
+        ["Commercial Cropland Exposure (USD)", data.agriculture.exposure],
+        ["Total Modeled Crop Expected Annual Loss (USD/yr)", data.agriculture.totalAgEal],
+        ["Indicative Crop Pure Loss Rate ($ per $1k Crop Value)", data.agriculture.agLossCostRate.toFixed(3)],
+        ["Agricultural Risk Tier", data.agriculture.agRiskTier],
+        ["Drought Risk Rating", data.agriculture.droughtRating],
+        ["Drought Annual Frequency (events/yr)", data.agriculture.droughtFreq],
+        ["Drought Crop EAL (USD/yr)", data.agriculture.droughtEal],
+        ["Inland Flood Crop EAL (USD/yr)", data.agriculture.floodAgEal],
+        ["Wildfire Crop EAL (USD/yr)", data.agriculture.wildfireAgEal]
+      ] : []),
       [],
       ["Peril Name", "Hazard Tier", "NRI Score (0-100)", "Loss Share (%)", "Indicative Loss Cost ($/1k TIV)", "Expected Annual Loss ($/yr)", "Annual Frequency (events/yr)"],
       ...data.perils.map(p => [
@@ -2521,6 +2805,7 @@ function renderCardModal(data) {
       `Evaluation Year: ${data.year} | Source: FEMA NRI & US Census ACS`,
       `Overall Hazard Risk: ${data.overallRating} (NRI Score: ${data.overallScore ? Number(data.overallScore).toFixed(1) : "-"} / 100)`,
       data.lossCostRate ? `Indicative Pure Loss Cost Rate: $${data.lossCostRate.toFixed(2)} per $1,000 asset value` : null,
+      data.agriculture && data.agriculture.hasAgriculture ? `Agricultural Crop Risk: ${data.agriculture.agRiskTier} (Cropland: ${formatCurrency(data.agriculture.exposure)}, Crop EAL: ${formatCurrency(data.agriculture.totalAgEal)}/yr, Pure Loss Rate: $${data.agriculture.agLossCostRate.toFixed(2)}/$1k)` : null,
       data.totalEal ? `Total Expected Annual Loss (EAL): ${formatCurrency(data.totalEal)} / year` : null,
       topLossSummary ? `Primary Loss Cost Drivers: ${topLossSummary}` : null,
       data.crs ? `FEMA Flood Mitigation: CRS Class ${data.crs.class} (${data.crs.discount} SFHA Premium Discount • ${data.crs.type})` : null,

@@ -1914,7 +1914,8 @@ body.modal-open {
 .risk-table-wrap {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .risk-card-table {
@@ -3678,6 +3679,224 @@ body.modal-open {
   color: #cbd5e1;
 }
 
+/* ==========================================================================
+   Agricultural Crop Risk & Federal Crop Insurance Exposure Dossier
+   ========================================================================== */
+
+.agri-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.agri-risk-badge.badge-vhigh {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.agri-risk-badge.badge-high {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.agri-risk-badge.badge-mod {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.agri-risk-badge.badge-low {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.agri-risk-badge.badge-none {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.agri-benchmark-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  font-weight: 500;
+}
+
+.agri-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 14px 0 16px 0;
+}
+
+.agri-kpi-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.agri-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.agri-kpi-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.agri-kpi-unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.agri-kpi-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+
+.agri-narrative-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.agri-narrative-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #166534;
+  margin-bottom: 6px;
+}
+
+.agri-narrative-icon {
+  font-size: 16px;
+}
+
+.agri-narrative-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e293b;
+  margin: 0 0 10px 0;
+}
+
+.agri-underwrite-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agri-meta-pill {
+  font-size: 11px;
+  background: rgba(22, 101, 52, 0.08);
+  border: 1px solid rgba(22, 101, 52, 0.2);
+  color: #166534;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.agri-urban-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 10px;
+}
+
+.agri-urban-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.agri-urban-body strong {
+  display: block;
+  font-size: 13px;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.agri-urban-body p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Dark mode for Agriculture Dossier */
+:root[data-theme="dark"] .agri-kpi-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:root[data-theme="dark"] .agri-kpi-label {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .agri-kpi-value {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .agri-kpi-unit,
+:root[data-theme="dark"] .agri-kpi-sub {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .agri-narrative-box {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+:root[data-theme="dark"] .agri-narrative-header {
+  color: #34d399;
+}
+
+:root[data-theme="dark"] .agri-narrative-text {
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"] .agri-meta-pill {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+:root[data-theme="dark"] .agri-urban-notice {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .agri-urban-body strong {
+  color: #f8fafc;
+}
+
 /* Interactive Moveable-Bands Colorbar */
 .interactive-colorbar {
   position: absolute;
@@ -3906,8 +4125,26 @@ body[data-active-tab="stats"] .interactive-colorbar {
 .color-band {
   width: 100%;
   min-height: 4px;
-  transition: height 0.04s ease;
   cursor: pointer;
+}
+
+.interactive-colorbar.is-dragging,
+.interactive-colorbar.is-dragging * {
+  user-select: none !important;
+}
+
+.interactive-colorbar.is-dragging .color-band,
+.interactive-colorbar.is-dragging .colorbar-handle,
+.interactive-colorbar.is-dragging .colorbar-handle .handle-line,
+.interactive-colorbar.is-dragging .colorbar-handle .handle-thumb,
+.interactive-colorbar.is-dragging .colorbar-handle .handle-tag,
+.interactive-colorbar.is-resizing .color-band,
+.interactive-colorbar.is-resizing .colorbar-handle,
+.colorbar-handle.dragging,
+.colorbar-handle.dragging .handle-line,
+.colorbar-handle.dragging .handle-thumb,
+.colorbar-handle.dragging .handle-tag {
+  transition: none !important;
 }
 
 .colorbar-handle {
@@ -4087,7 +4324,6 @@ body[data-active-tab="stats"] .interactive-colorbar {
   .color-band {
     height: 100%;
     min-width: 4px;
-    transition: width 0.04s ease;
   }
 
   .colorbar-handle {
@@ -4162,22 +4398,390 @@ body[data-active-tab="stats"] .interactive-colorbar {
   pointer-events: none !important;
 }
 
+/* ==========================================================================
+   Mobile Responsive Overhaul for Underwriting Risk Card & Insurance Calculator
+   ========================================================================== */
 @media (max-width: 800px) {
   /* On mobile touchscreens, hide floating hover tooltips so they don't obstruct clicks */
   .maplibregl-popup {
     display: none !important;
   }
 
+  /* 1. Modal Backdrop & Container: Full-width bottom-sheet / modal */
   .risk-card-backdrop {
-    padding: 10px;
+    padding: 0 !important;
+    align-items: flex-end !important;
+    justify-content: stretch !important;
+    overflow-x: hidden !important;
   }
 
   .risk-card-modal {
-    max-height: 92dvh;
-    border-radius: 14px;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
   }
 
   .risk-card-content {
-    padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    padding: 20px 14px calc(32px + env(safe-area-inset-bottom, 0px)) 14px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 2. Header and Close Button */
+  .risk-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding-bottom: 14px !important;
+    padding-right: 44px !important;
+    position: relative !important;
+  }
+
+  .risk-card-close-btn {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(0, 0, 0, 0.06) !important;
+    border-radius: 50% !important;
+    border: none !important;
+  }
+
+  :root[data-theme="dark"] .risk-card-close-btn {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #f8fafc !important;
+  }
+
+  .risk-card-title {
+    font-size: 20px !important;
+    line-height: 1.25 !important;
+    word-break: break-word !important;
+  }
+
+  .risk-card-meta {
+    font-size: 11px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .risk-card-header-right {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+  }
+
+  /* 3. Export / Action Buttons */
+  .risk-card-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin-bottom: 16px !important;
+  }
+
+  .risk-card-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 6px !important;
+    font-size: 11.5px !important;
+    gap: 5px !important;
+  }
+
+  /* 4. KPI Executive Grid */
+  .risk-card-kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .kpi-box {
+    padding: 12px 14px !important;
+  }
+
+  /* 5. Loss Composition Donut & Breakdown */
+  .loss-comp-container {
+    padding: 12px 14px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .loss-pie-layout {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+  }
+
+  .loss-pie-breakdown {
+    width: 100% !important;
+  }
+
+  .loss-pie-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* 6. Peril Breakdown Table (Scrollable Container) */
+  .risk-table-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 16px !important;
+    box-sizing: border-box !important;
+  }
+
+  .risk-card-table {
+    min-width: 560px !important;
+    font-size: 11.5px !important;
+  }
+
+  .risk-card-table th,
+  .risk-card-table td {
+    padding: 8px 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .score-bar-wrap {
+    display: none !important;
+  }
+
+  /* 7. Property Insurance Calculator Section */
+  .insurance-calc-section {
+    padding: 14px 12px !important;
+    margin: 16px 0 !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .insurance-calc-section .section-header > div {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .insurance-calc-section h3 {
+    font-size: 15px !important;
+    line-height: 1.3 !important;
+  }
+
+  /* 8. Calculator Controls Grid & Inputs */
+  .calc-controls-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding: 12px !important;
+    margin: 12px 0 16px 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .calc-control-group {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .calc-control-label {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    white-space: normal !important;
+    min-height: 0 !important;
+    gap: 2px !important;
+  }
+
+  .calc-control-label span:first-child {
+    white-space: normal !important;
+    font-size: 12.5px !important;
+  }
+
+  .calc-control-hint {
+    white-space: normal !important;
+    font-size: 10.5px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Property type pills (Single Family vs Condo) */
+  #propertyTypeRow {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  #propertyTypeRow .calc-pill {
+    white-space: normal !important;
+    font-size: 12.5px !important;
+    padding: 10px 12px !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    line-height: 1.3 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Claims past 5 years pills */
+  #claimCountRow {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  #claimCountRow .calc-pill {
+    white-space: normal !important;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+    text-align: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Claim type pills */
+  #claimTypeRow {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  #claimTypeRow .calc-pill {
+    white-space: normal !important;
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Actionable Risk Mitigations */
+  .calc-mitigation-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .calc-mitigation-pill {
+    padding: 10px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 9. Dual Comparison Cards (Flood vs Homeowners) */
+  .calc-dual-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    width: 100% !important;
+    margin-bottom: 16px !important;
+  }
+
+  .calc-card-header {
+    padding: 12px 14px !important;
+  }
+
+  .calc-card-body {
+    padding: 14px !important;
+  }
+
+  .calc-price-num {
+    font-size: 26px !important;
+  }
+
+  /* 10. Reinsurance & Catastrophe Capital Section */
+  .calc-reins-section {
+    padding: 14px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .calc-reins-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .calc-reins-legend {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+
+  .calc-reins-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* 11. Total Summary & Comparison Banner */
+  .calc-summary-banner {
+    padding: 14px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .calc-summary-top {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* 12. FEMA CRS Section */
+  .crs-container {
+    padding: 14px 12px !important;
+  }
+
+  .crs-hero-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .crs-ladder {
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .exposure-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* 13. Agricultural Crop Risk Dossier Mobile Responsive */
+  .agri-card-section {
+    padding: 14px 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .agri-kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .agri-narrative-box {
+    padding: 12px 10px !important;
+  }
+
+  .agri-underwrite-meta {
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+
+  .agri-urban-notice {
+    flex-direction: column !important;
+    gap: 8px !important;
   }
 }

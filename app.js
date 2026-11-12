@@ -270,6 +270,8 @@ Object.entries(EVENT_CONFIGS).forEach(([id, event]) => {
 
 
 
+const isAnnualMode = (mode) => ["census", "fema", "agriculture", "annual"].includes(mode);
+
 function currentEventConfig() {
 
   return EVENT_CONFIGS[state.dataMode] || null;
@@ -373,6 +375,17 @@ function isZeroIgnoredVariable(variable = state?.variable) {
 
 
 const labels = {
+
+  // Commercial Agriculture & Cropland Risk (USDA / FEMA)
+  fema_drought_total_exposure: "Commercial Cropland Asset Exposure (USD)",
+  fema_inland_flood_agriculture_exposure: "Cropland Exposed to Inland Flood (USD)",
+  fema_wildfire_agriculture_exposure: "Cropland Exposed to Wildfire (USD)",
+  total_agriculture_eal: "Total Agricultural Crop EAL (USD/yr)",
+  fema_inland_flood_agriculture_eal: "Inland Flood Agricultural Crop EAL (USD/yr)",
+  fema_wildfire_agriculture_eal: "Wildfire Agricultural Crop EAL (USD/yr)",
+  ag_loss_cost_rate: "Indicative Crop Pure Loss Rate ($ / $1k Crop)",
+  fema_inland_flood_agriculture_loss_rate: "Inland Flood Ag Loss Rate ($ / $1k)",
+  fema_wildfire_agriculture_loss_rate: "Wildfire Ag Loss Rate ($ / $1k)",
 
   wb_gdp_per_capita: "GDP per Capita (USD) (World Bank)",
 
@@ -1134,11 +1147,11 @@ let variables = [];
 
 let state = {
 
-  dataMode: "annual",
+  dataMode: "census",
 
   geography: "county",
 
-  variable: null,
+  variable: "total_population",
 
   year: null,
 
@@ -1337,6 +1350,66 @@ function defaultMetadata(variable) {
     meta.interpretation =
 
       "Higher values indicate that more people are exposed.";
+
+  } else if (variable === "fema_drought_total_exposure") {
+
+    meta.definition = "Total dollar valuation of commercial agricultural cropland exposed to natural hazards.";
+
+    meta.unit = "USD";
+
+    meta.interpretation = "Higher values indicate a larger commercial crop commodity baseline.";
+
+    meta.source = "USDA Census of Agriculture & FEMA National Risk Index";
+
+  } else if (variable === "total_agriculture_eal") {
+
+    meta.definition = "Total modeled annual economic crop damage across all agricultural hazard vectors (Drought, Inland Flood, Wildfire).";
+
+    meta.unit = "USD/year";
+
+    meta.interpretation = "Higher values indicate greater expected multi-peril annual crop losses.";
+
+    meta.source = "FEMA National Risk Index & USDA Risk Management Agency (RMA)";
+
+  } else if (variable === "ag_loss_cost_rate") {
+
+    meta.definition = "Modeled pure loss cost per $1,000 of commercial cropland valuation (annual crop burn rate).";
+
+    meta.unit = "$ per $1,000 crop value";
+
+    meta.interpretation = "Higher rates indicate higher catastrophic crop yield volatility and greater insurance loss exposure.";
+
+    meta.source = "SDSU SCIL Actuarial Engine & USDA RMA";
+
+  } else if (String(variable).endsWith("_agriculture_eal")) {
+
+    meta.definition = `${label} calculated as part of FEMA's National Risk Index.`;
+
+    meta.unit = "USD/year";
+
+    meta.interpretation = "Higher values indicate greater expected annual crop damage from this hazard vector.";
+
+    meta.source = "FEMA National Risk Index & USDA RMA";
+
+  } else if (String(variable).endsWith("_agriculture_exposure")) {
+
+    meta.definition = `${label} calculated as part of FEMA's National Risk Index.`;
+
+    meta.unit = "USD";
+
+    meta.interpretation = "Higher values indicate more commercial cropland exposed to this peril.";
+
+    meta.source = "USDA Census of Agriculture & FEMA National Risk Index";
+
+  } else if (String(variable).endsWith("_agriculture_loss_rate")) {
+
+    meta.definition = `${label} calculated as part of FEMA's National Risk Index.`;
+
+    meta.unit = "$ per $1,000 crop value";
+
+    meta.interpretation = "Higher rates indicate a higher proportion of cropland value damaged annually.";
+
+    meta.source = "FEMA National Risk Index";
 
   } else if (/_total_exposure$/.test(variable)) {
 
@@ -2304,7 +2377,9 @@ const VARIABLE_GROUP_ORDER = [
 
   "Census - Housing & Transportation",
 
-
+  "Agriculture - Cropland Exposure",
+  "Agriculture - Crop Losses (EAL)",
+  "Agriculture - Pure Loss Rates",
 
   "FEMA - Overall Risk",
 
@@ -2336,9 +2411,48 @@ const VARIABLE_GROUP_ORDER = [
 
 
 
-function variableGroup(variable) {
-
+function getVariableCategory(variable) {
   const name = String(variable).toLowerCase();
+  if (
+    name === "ag_loss_cost_rate" ||
+    name === "total_agriculture_eal" ||
+    name === "fema_drought_total_exposure" ||
+    name.includes("agriculture_")
+  ) {
+    return "agriculture";
+  }
+  if (name.startsWith("fema_")) {
+    return "fema";
+  }
+  if (
+    isGlobalVariable(variable) ||
+    name.startsWith("wb_") ||
+    name.startsWith("ndgain_") ||
+    name.startsWith("emdat_") ||
+    name.startsWith("wri_") ||
+    name.startsWith("inform_") ||
+    name.startsWith("fao_")
+  ) {
+    return "global";
+  }
+  const event = eventConfigFromVariable(name);
+  if (event) return "event";
+  return "census";
+}
+
+function variableGroup(variable) {
+  const name = String(variable).toLowerCase();
+
+  // Commercial Agriculture & Cropland Risk (USDA / FEMA)
+  if (name === "fema_drought_total_exposure" || name === "fema_inland_flood_agriculture_exposure" || name === "fema_wildfire_agriculture_exposure") {
+    return "Agriculture - Cropland Exposure";
+  }
+  if (name === "total_agriculture_eal" || name === "fema_inland_flood_agriculture_eal" || name === "fema_wildfire_agriculture_eal") {
+    return "Agriculture - Crop Losses (EAL)";
+  }
+  if (name === "ag_loss_cost_rate" || name === "fema_inland_flood_agriculture_loss_rate" || name === "fema_wildfire_agriculture_loss_rate") {
+    return "Agriculture - Pure Loss Rates";
+  }
 
 
 
@@ -2568,6 +2682,12 @@ function setGroupedVariableOptions(element, values, selected) {
 
       effectiveValues = GLOBAL_VARIABLES;
 
+    } else if (isAnnualMode(state.dataMode)) {
+
+      const activeCat = ["census", "fema", "agriculture"].includes(state.dataMode) ? state.dataMode : "census";
+
+      effectiveValues = values.filter((v) => !isGlobalVariable(v) && getVariableCategory(v) === activeCat);
+
     } else {
 
       effectiveValues = values.filter((v) => !isGlobalVariable(v));
@@ -2633,6 +2753,26 @@ function setGroupedVariableOptions(element, values, selected) {
     })
 
     .join("");
+
+
+
+  if (selected && element.value !== selected) {
+
+    element.value = selected;
+
+  }
+
+  if (!element.value && element.options.length > 0) {
+
+    element.selectedIndex = 0;
+
+    if (element === els.variableSelect) {
+
+      state.variable = element.value;
+
+    }
+
+  }
 
 }
 
@@ -2724,6 +2864,10 @@ function valueKind(variable) {
 
   if (variable === "median_year_built") return "year";
 
+  if (variable === "ag_loss_cost_rate" || String(variable).endsWith("_agriculture_loss_rate")) return "rate";
+
+  if (/fema_drought_total_exposure|agriculture_exposure|total_agriculture_eal|agriculture_eal/.test(variable)) return "dollar";
+
   if (/^inform_|^wri_|^ndgain_/.test(variable)) return "score";
 
   if (/rate|pct|percent/.test(variable)) return "percent";
@@ -2753,6 +2897,15 @@ function formatValue(value, variable) {
   const number = toNumber(value);
 
   if (!Number.isFinite(number)) return "-";
+
+  if (variable === "ag_loss_cost_rate") {
+    return `$${number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / $1k`;
+  }
+
+  if (String(variable).endsWith("_agriculture_loss_rate")) {
+    const rateVal = number <= 1.0 ? number * 1000 : number;
+    return `$${rateVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / $1k`;
+  }
 
 
 
@@ -2924,6 +3077,18 @@ function normalizeRow(row) {
 
 
 
+  // Derived Agricultural Cropland Risk Metrics
+  const droughtExp = Number(row.fema_drought_total_exposure) || 0;
+  const floodAgExp = Number(row.fema_inland_flood_agriculture_exposure) || 0;
+  const wildfireAgExp = Number(row.fema_wildfire_agriculture_exposure) || 0;
+  const agExposure = Math.max(droughtExp, floodAgExp, wildfireAgExp);
+
+  const droughtEal = Number(row.fema_drought_expected_annual_loss) || 0;
+  const floodAgEal = Number(row.fema_inland_flood_agriculture_eal) || 0;
+  const wildfireAgEal = Number(row.fema_wildfire_agriculture_eal) || 0;
+  const totalAgEal = droughtEal + floodAgEal + wildfireAgEal;
+  const agLossCostRate = agExposure > 0 ? (totalAgEal / agExposure) * 1000 : 0;
+
   return {
 
     ...row,
@@ -2935,6 +3100,10 @@ function normalizeRow(row) {
     county_name: row.county_name || nameParts[0] || "Unknown county",
 
     state_name: row.state_name || nameParts.at(-1) || "Unknown state",
+
+    total_agriculture_eal: totalAgEal,
+
+    ag_loss_cost_rate: agLossCostRate,
 
   };
 
@@ -6126,7 +6295,21 @@ function updateTabAvailability() {
 
 
 
+let cachedColorRange = null;
+
+let cachedColorRangeKey = null;
+
+
+
 function mapColorRange() {
+
+  const key = `${state.geography}|${state.variable}|${state.scaleMode}|${state.selectedStates.join(",")}|${state.countyKey}|${state.tractStateFips}`;
+
+  if (cachedColorRange && cachedColorRangeKey === key) {
+
+    return cachedColorRange;
+
+  }
 
   const allYearData = filtered({
 
@@ -6148,7 +6331,13 @@ function mapColorRange() {
 
 
 
-  return colorRange(values, state.scaleMode);
+  const range = colorRange(values, state.scaleMode);
+
+  cachedColorRange = range;
+
+  cachedColorRangeKey = key;
+
+  return range;
 
 }
 
@@ -7090,6 +7279,8 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
   stopYearAnimation();
 
+  cachedColorRangeKey = null;
+
 
 
   const config = geographyConfig();
@@ -7146,9 +7337,21 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
 
 
-    if (isGlobalVariable(state.variable) || !variables.includes(state.variable) || !state.variable) {
+    if (isGlobalVariable(state.variable) || !variables.includes(state.variable) || !state.variable || getVariableCategory(state.variable) !== state.dataMode) {
 
-      state.variable = "total_population";
+      if (state.dataMode === "fema") {
+
+        state.variable = variables.includes("fema_risk_score") ? "fema_risk_score" : variables[0];
+
+      } else if (state.dataMode === "agriculture") {
+
+        state.variable = variables.includes("ag_loss_cost_rate") ? "ag_loss_cost_rate" : (variables.includes("fema_drought_total_exposure") ? "fema_drought_total_exposure" : variables[0]);
+
+      } else {
+
+        state.variable = variables.includes("total_population") ? "total_population" : variables[0];
+
+      }
 
     }
 
@@ -7157,6 +7360,12 @@ async function loadGeography({ preserveVariable = true } = {}) {
     await loadCountyLookup();
 
     setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+
+    if (els.dataModeSelect && els.dataModeSelect.value !== state.dataMode) {
+
+      els.dataModeSelect.value = state.dataMode;
+
+    }
 
     syncAnalysisVariableOptions();
 
@@ -7288,17 +7497,45 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
 
 
-  if (preserveVariable && variables.includes(previousVariable)) {
+  if (preserveVariable && variables.includes(previousVariable) && (!isAnnualMode(state.dataMode) || getVariableCategory(previousVariable) === state.dataMode)) {
 
     state.variable = previousVariable;
 
   } else {
 
-    state.variable = state.geography === "global"
+    if (state.geography === "global") {
 
-      ? (variables.includes("ndgain_index") ? "ndgain_index" : (variables.includes("inform_risk") ? "inform_risk" : variables[0]))
+      state.variable = variables.includes("ndgain_index")
 
-      : (variables.includes("total_population") ? "total_population" : variables[0]);
+        ? "ndgain_index"
+
+        : (variables.includes("inform_risk") ? "inform_risk" : variables[0]);
+
+    } else if (state.dataMode === "fema") {
+
+      state.variable = variables.includes("fema_risk_score")
+
+        ? "fema_risk_score"
+
+        : variables[0];
+
+    } else if (state.dataMode === "agriculture") {
+
+      state.variable = variables.includes("ag_loss_cost_rate")
+
+        ? "ag_loss_cost_rate"
+
+        : (variables.includes("fema_drought_total_exposure") ? "fema_drought_total_exposure" : variables[0]);
+
+    } else {
+
+      state.variable = variables.includes("total_population")
+
+        ? "total_population"
+
+        : variables[0];
+
+    }
 
   }
 
@@ -7321,6 +7558,12 @@ async function loadGeography({ preserveVariable = true } = {}) {
 
 
   setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+
+  if (els.dataModeSelect && els.dataModeSelect.value !== state.dataMode) {
+
+    els.dataModeSelect.value = state.dataMode;
+
+  }
 
   syncAnalysisVariableOptions();
 
@@ -7472,9 +7715,15 @@ async function init() {
 
     state.geography = "county";
 
-    state.dataMode = "annual";
+    state.dataMode = "census";
 
-    els.dataModeSelect.value = state.dataMode;
+    state.variable = "total_population";
+
+    if (els.dataModeSelect) {
+
+      els.dataModeSelect.value = "census";
+
+    }
 
     els.geographySelect.value = state.geography;
 
@@ -7766,85 +8015,77 @@ els.dataModeSelect.addEventListener("change", async () => {
 
 
 
-    // Default to "annual" Census & FEMA mode
+    // "census", "fema", or "agriculture"
 
-    state.dataMode = "annual";
+    const prevMode = state.dataMode;
 
-    state.geography = "county";
+    state.dataMode = selectedMode;
 
-    state.selectedStates = [];
-
-    state.countyKey = "All counties";
-
-    els.dataModeSelect.value = "annual";
+    els.dataModeSelect.value = selectedMode;
 
     els.geographySelect.disabled = false;
 
     syncGeographySelectLocking();
 
-    tractRowsByState.clear();
 
-    activeNationwideTractVariable = null;
 
-    tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
+    // Assign default variable for selected category
 
-    if (isGlobalVariable(state.variable) || !state.variable) {
+    if (selectedMode === "census") {
 
       state.variable = "total_population";
 
+    } else if (selectedMode === "fema") {
+
+      state.variable = "fema_risk_score";
+
+    } else if (selectedMode === "agriculture") {
+
+      state.variable = "ag_loss_cost_rate";
+
     }
 
-    await loadGeography({ preserveVariable: false });
+
+
+    if (!isAnnualMode(prevMode) || state.geography === "global" || state.geography === "tract") {
+
+      if (state.geography !== "tract") {
+
+        state.geography = "county";
+
+      }
+
+      state.selectedStates = [];
+
+      state.countyKey = "All counties";
+
+      tractRowsByState.clear();
+
+      activeNationwideTractVariable = null;
+
+      tractMap?.removeFeatureState({ source: "us-tracts", sourceLayer: "tracts" });
+
+      await loadGeography({ preserveVariable: false });
+
+    } else {
+
+      setGroupedVariableOptions(els.variableSelect, variables, state.variable);
+
+      syncAnalysisVariableOptions();
+
+      syncYearAnimationControls({ preserveYear: true });
+
+      render();
+
+    }
 
   } catch (error) {
 
-    els.status.innerHTML =
-
-      `<div class="error">${escapeHtml(error.message)}</div>`;
+    els.status.innerHTML = `<div class="error-banner">Could not switch data mode: ${error.message}</div>`;
 
     console.error(error);
 
   }
-
-});
-
-
-
-els.variableSelect.addEventListener("change", async () => {
-
-  const selectedVar = els.variableSelect.value;
-
-
-
-  const isNoaa = ["total_damage", "property_damage", "crop_damage", "fema_ia_registrations", "fema_ia_ihp_amount", "oct_mar_precip", "oct_mar_precip_anomaly"].includes(selectedVar);
-
-  const isNfip = selectedVar && selectedVar.includes("nfip");
-
-  
-
-  if (els.dataModeSelect.value === "el_nino_2015_16" || els.dataModeSelect.value === "el_nino_2023_24") {
-
-    if ((isNoaa && state.geography !== "county") || (isNfip && state.geography === "county")) {
-
-      // Re-load the specific event to correctly map the data onto the right geography
-
-      await loadSpecificEvent(els.dataModeSelect.value);
-
-      return;
-
-    }
-
-  }
-
-
-
-  state.variable = selectedVar;
-
-  state.bandFractions = [0.20, 0.40, 0.60, 0.80];
-
-  syncYearAnimationControls({ preserveYear: true });
-
-  render();
 
 });
 
@@ -8157,6 +8398,22 @@ els.resetButton.addEventListener("click", () => {
       ? "ndgain_index"
 
       : (variables.includes("inform_risk") ? "inform_risk" : variables[0]);
+
+  } else if (state.dataMode === "fema") {
+
+    state.variable = variables.includes("fema_risk_score")
+
+      ? "fema_risk_score"
+
+      : variables[0];
+
+  } else if (state.dataMode === "agriculture") {
+
+    state.variable = variables.includes("ag_loss_cost_rate")
+
+      ? "ag_loss_cost_rate"
+
+      : (variables.includes("fema_drought_total_exposure") ? "fema_drought_total_exposure" : variables[0]);
 
   } else {
 
@@ -9540,7 +9797,7 @@ async function loadVisibleTractStateData() {
 
       if (
 
-        state.dataMode === "annual" &&
+        isAnnualMode(state.dataMode) &&
 
         state.geography === "tract" &&
 
@@ -9564,7 +9821,7 @@ async function loadVisibleTractStateData() {
 
     if (
 
-      state.dataMode === "annual" &&
+      isAnnualMode(state.dataMode) &&
 
       state.geography === "tract" &&
 
@@ -9674,7 +9931,7 @@ async function loadTractStateData(
 
       tractVariableRowsCache.set(cacheKey, normalizedRows);
 
-      if (state.dataMode === "annual" && state.variable === variable) {
+      if (isAnnualMode(state.dataMode) && state.variable === variable) {
 
         tractRowsByState.set(stateFips, normalizedRows);
 
@@ -9694,7 +9951,7 @@ async function loadTractStateData(
 
       console.error(`Could not load ${variable} tract data for state ${stateFips}.`, error);
 
-      if (updateUi && state.dataMode === "annual" && state.variable === variable) {
+      if (updateUi && isAnnualMode(state.dataMode) && state.variable === variable) {
 
         els.status.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
 
@@ -10114,7 +10371,45 @@ function getTractStepFillExpression(cmin, cmax) {
 
 
 
-function applyBandClassificationToMap() {
+let bandClassificationRaf = null;
+
+
+
+function applyBandClassificationToMap(immediate = false) {
+
+  if (immediate) {
+
+    if (bandClassificationRaf) {
+
+      cancelAnimationFrame(bandClassificationRaf);
+
+      bandClassificationRaf = null;
+
+    }
+
+    _applyBandClassificationInternal();
+
+    return;
+
+  }
+
+  if (!bandClassificationRaf) {
+
+    bandClassificationRaf = requestAnimationFrame(() => {
+
+      bandClassificationRaf = null;
+
+      _applyBandClassificationInternal();
+
+    });
+
+  }
+
+}
+
+
+
+function _applyBandClassificationInternal() {
 
   let [cmin, cmax] = mapColorRange();
 
@@ -10136,7 +10431,7 @@ function applyBandClassificationToMap() {
 
   }
 
-  if (els.mapChart?.data?.length) {
+  if (els.mapChart?.data?.length && !els.mapChart.classList.contains("hidden")) {
 
     Plotly.restyle(els.mapChart, { colorscale: [getPlotlySteppedColorscale()] }, [0]);
 
@@ -10188,27 +10483,43 @@ function updateInteractiveColorbar() {
 
 
 
-function renderColorbarBandsAndHandles(cmin, cmax) {
+let cbDomElements = null;
 
-  const maxEl = document.getElementById("colorbarLimitMax");
+function getCbDomElements() {
 
-  const minEl = document.getElementById("colorbarLimitMin");
+  if (cbDomElements && cbDomElements.bar?.isConnected) return cbDomElements;
 
-  if (maxEl) maxEl.textContent = formatValue(cmax, state.variable);
+  cbDomElements = {
 
-  if (minEl) minEl.textContent = formatValue(cmin, state.variable);
+    bar: document.getElementById("interactiveColorbar"),
+
+    track: document.getElementById("colorbarTrack"),
+
+    maxEl: document.getElementById("colorbarLimitMax"),
+
+    minEl: document.getElementById("colorbarLimitMin"),
+
+    titleEl: document.getElementById("colorbarTitle"),
+
+    zeroNotice: document.getElementById("colorbarZeroNotice"),
+
+    bands: [0, 1, 2, 3, 4].map((i) => document.getElementById(`colorBand${i}`)),
+
+    handles: [0, 1, 2, 3].map((i) => document.getElementById(`colorbarHandle${i}`)),
+
+    tags: [0, 1, 2, 3].map((i) => document.getElementById(`handleTag${i}`)),
+
+  };
+
+  return cbDomElements;
+
+}
 
 
 
-  const colors = tractColorRamp();
+function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
 
-  colors.forEach((col, idx) => {
-
-    const band = document.getElementById(`colorBand${idx}`);
-
-    if (band) band.style.backgroundColor = col;
-
-  });
+  const { maxEl, minEl, bands, handles, tags, zeroNotice } = getCbDomElements();
 
 
 
@@ -10220,61 +10531,97 @@ function renderColorbarBandsAndHandles(cmin, cmax) {
 
 
 
-  const band0 = document.getElementById("colorBand0");
+  if (!fast) {
 
-  const band1 = document.getElementById("colorBand1");
+    if (maxEl) maxEl.textContent = formatValue(cmax, state.variable);
 
-  const band2 = document.getElementById("colorBand2");
+    if (minEl) minEl.textContent = formatValue(cmin, state.variable);
 
-  const band3 = document.getElementById("colorBand3");
 
-  const band4 = document.getElementById("colorBand4");
+
+    const colors = tractColorRamp();
+
+    colors.forEach((col, idx) => {
+
+      if (bands[idx]) bands[idx].style.backgroundColor = col;
+
+    });
+
+
+
+    if (zeroNotice) {
+
+      zeroNotice.classList.toggle("hidden", !isZeroIgnoredVariable(state.variable));
+
+    }
+
+
+
+    const t0 = cmin + f0 * range;
+
+    const t1 = cmin + f1 * range;
+
+    const t2 = cmin + f2 * range;
+
+    const t3 = cmin + f3 * range;
+
+    if (bands[0]) bands[0].title = `Band 1: ${formatValue(cmin, state.variable)} – ${formatValue(t0, state.variable)}`;
+
+    if (bands[1]) bands[1].title = `Band 2: ${formatValue(t0, state.variable)} – ${formatValue(t1, state.variable)}`;
+
+    if (bands[2]) bands[2].title = `Band 3: ${formatValue(t1, state.variable)} – ${formatValue(t2, state.variable)}`;
+
+    if (bands[3]) bands[3].title = `Band 4: ${formatValue(t2, state.variable)} – ${formatValue(t3, state.variable)}`;
+
+    if (bands[4]) bands[4].title = `Band 5: ${formatValue(t3, state.variable)} – ${formatValue(cmax, state.variable)}`;
+
+  }
 
 
 
   if (mobile) {
 
-    if (band0) band0.style.width = `${f0 * 100}%`;
+    if (bands[0]) bands[0].style.width = `${f0 * 100}%`;
 
-    if (band1) band1.style.width = `${(f1 - f0) * 100}%`;
+    if (bands[1]) bands[1].style.width = `${(f1 - f0) * 100}%`;
 
-    if (band2) band2.style.width = `${(f2 - f1) * 100}%`;
+    if (bands[2]) bands[2].style.width = `${(f2 - f1) * 100}%`;
 
-    if (band3) band3.style.width = `${(f3 - f2) * 100}%`;
+    if (bands[3]) bands[3].style.width = `${(f3 - f2) * 100}%`;
 
-    if (band4) band4.style.width = `${(1.0 - f3) * 100}%`;
+    if (bands[4]) bands[4].style.width = `${(1.0 - f3) * 100}%`;
 
-    [band0, band1, band2, band3, band4].forEach((b) => {
+    if (!fast) {
 
-      if (b) {
+      bands.forEach((b) => {
 
-        b.style.height = "100%";
+        if (b) b.style.height = "100%";
 
-      }
+      });
 
-    });
+    }
 
   } else {
 
-    if (band0) band0.style.height = `${f0 * 100}%`;
+    if (bands[0]) bands[0].style.height = `${f0 * 100}%`;
 
-    if (band1) band1.style.height = `${(f1 - f0) * 100}%`;
+    if (bands[1]) bands[1].style.height = `${(f1 - f0) * 100}%`;
 
-    if (band2) band2.style.height = `${(f2 - f1) * 100}%`;
+    if (bands[2]) bands[2].style.height = `${(f2 - f1) * 100}%`;
 
-    if (band3) band3.style.height = `${(f3 - f2) * 100}%`;
+    if (bands[3]) bands[3].style.height = `${(f3 - f2) * 100}%`;
 
-    if (band4) band4.style.height = `${(1.0 - f3) * 100}%`;
+    if (bands[4]) bands[4].style.height = `${(1.0 - f3) * 100}%`;
 
-    [band0, band1, band2, band3, band4].forEach((b) => {
+    if (!fast) {
 
-      if (b) {
+      bands.forEach((b) => {
 
-        b.style.width = "100%";
+        if (b) b.style.width = "100%";
 
-      }
+      });
 
-    });
+    }
 
   }
 
@@ -10284,9 +10631,9 @@ function renderColorbarBandsAndHandles(cmin, cmax) {
 
   state.bandFractions.forEach((f, idx) => {
 
-    const handle = document.getElementById(`colorbarHandle${idx}`);
+    const handle = handles[idx];
 
-    const tag = document.getElementById(`handleTag${idx}`);
+    const tag = tags[idx];
 
     if (handle) {
 
@@ -10294,17 +10641,25 @@ function renderColorbarBandsAndHandles(cmin, cmax) {
 
         handle.style.left = `${f * 100}%`;
 
-        handle.style.bottom = "auto";
+        if (!fast) {
 
-        handle.style.top = "";
+          handle.style.bottom = "auto";
+
+          handle.style.top = "";
+
+        }
 
       } else {
 
         handle.style.bottom = `${f * 100}%`;
 
-        handle.style.left = "-6px";
+        if (!fast) {
 
-        handle.style.top = "";
+          handle.style.left = "-6px";
+
+          handle.style.top = "";
+
+        }
 
       }
 
@@ -10319,38 +10674,6 @@ function renderColorbarBandsAndHandles(cmin, cmax) {
     }
 
   });
-
-
-
-  // Tooltips for bands
-
-  const t0 = cmin + f0 * range;
-
-  const t1 = cmin + f1 * range;
-
-  const t2 = cmin + f2 * range;
-
-  const t3 = cmin + f3 * range;
-
-  if (band0) band0.title = `Band 1: ${formatValue(cmin, state.variable)} – ${formatValue(t0, state.variable)}`;
-
-  if (band1) band1.title = `Band 2: ${formatValue(t0, state.variable)} – ${formatValue(t1, state.variable)}`;
-
-  if (band2) band2.title = `Band 3: ${formatValue(t1, state.variable)} – ${formatValue(t2, state.variable)}`;
-
-  if (band3) band3.title = `Band 4: ${formatValue(t2, state.variable)} – ${formatValue(t3, state.variable)}`;
-
-  if (band4) band4.title = `Band 5: ${formatValue(t3, state.variable)} – ${formatValue(cmax, state.variable)}`;
-
-
-
-  const zeroNotice = document.getElementById("colorbarZeroNotice");
-
-  if (zeroNotice) {
-
-    zeroNotice.classList.toggle("hidden", !isZeroIgnoredVariable(state.variable));
-
-  }
 
 }
 
@@ -10426,6 +10749,8 @@ function initInteractiveColorbar() {
 
     let startX = 0, startY = 0, startW = 0, startH = 0;
 
+    let resizeRafId = null;
+
 
 
     const onGripDown = (e) => {
@@ -10439,6 +10764,8 @@ function initInteractiveColorbar() {
       isResizing = true;
 
       grip.classList.add("resizing");
+
+      bar.classList.add("is-resizing");
 
       startX = e.clientX;
 
@@ -10468,15 +10795,25 @@ function initInteractiveColorbar() {
 
       const newH = Math.max(200, Math.min(800, Math.round(startH + dy)));
 
-      bar.style.setProperty("--colorbar-width", `${newW}px`);
+      if (!resizeRafId) {
 
-      bar.style.setProperty("--colorbar-track-height", `${newH}px`);
+        resizeRafId = requestAnimationFrame(() => {
 
-      let [cmin, cmax] = mapColorRange();
+          resizeRafId = null;
 
-      if (cmin === cmax) cmax = cmin + 1;
+          bar.style.setProperty("--colorbar-width", `${newW}px`);
 
-      renderColorbarBandsAndHandles(cmin, cmax);
+          bar.style.setProperty("--colorbar-track-height", `${newH}px`);
+
+          let [cmin, cmax] = mapColorRange();
+
+          if (cmin === cmax) cmax = cmin + 1;
+
+          renderColorbarBandsAndHandles(cmin, cmax, true);
+
+        });
+
+      }
 
     };
 
@@ -10486,11 +10823,27 @@ function initInteractiveColorbar() {
 
       if (isResizing) {
 
+        if (resizeRafId) {
+
+          cancelAnimationFrame(resizeRafId);
+
+          resizeRafId = null;
+
+        }
+
         try { grip.releasePointerCapture(e.pointerId); } catch {}
 
         isResizing = false;
 
         grip.classList.remove("resizing");
+
+        bar.classList.remove("is-resizing");
+
+        let [cmin, cmax] = mapColorRange();
+
+        if (cmin === cmax) cmax = cmin + 1;
+
+        renderColorbarBandsAndHandles(cmin, cmax, false);
 
       }
 
@@ -10520,9 +10873,9 @@ function initInteractiveColorbar() {
 
       if (cmin === cmax) cmax = cmin + 1;
 
-      renderColorbarBandsAndHandles(cmin, cmax);
+      renderColorbarBandsAndHandles(cmin, cmax, false);
 
-      applyBandClassificationToMap();
+      applyBandClassificationToMap(true);
 
     });
 
@@ -10600,15 +10953,27 @@ function initInteractiveColorbar() {
 
         state.bandFractions = [f0, f1, f2, f3];
 
-        renderColorbarBandsAndHandles(cmin, cmax);
+        renderColorbarBandsAndHandles(cmin, cmax, false);
 
-        applyBandClassificationToMap();
+        applyBandClassificationToMap(true);
 
       }
 
     });
 
   }
+
+
+
+  let activeTrackRect = null;
+
+  let activeMobile = false;
+
+  let activeCmin = 0;
+
+  let activeCmax = 1;
+
+  let dragRafId = null;
 
 
 
@@ -10632,6 +10997,28 @@ function initInteractiveColorbar() {
 
       handle.classList.add("dragging");
 
+      bar?.classList.add("is-dragging");
+
+
+
+      const track = document.getElementById("colorbarTrack");
+
+      if (track) {
+
+        activeTrackRect = track.getBoundingClientRect();
+
+      }
+
+      activeMobile = isMobile();
+
+      let [cmin, cmax] = mapColorRange();
+
+      if (cmin === cmax) cmax = cmin + 1;
+
+      activeCmin = cmin;
+
+      activeCmax = cmax;
+
     };
 
 
@@ -10640,49 +11027,85 @@ function initInteractiveColorbar() {
 
       if (activeColorbarHandle !== i) return;
 
-      const track = document.getElementById("colorbarTrack");
-
-      if (!track) return;
+      if (!activeTrackRect) return;
 
 
-
-      const rect = track.getBoundingClientRect();
-
-      const mobile = isMobile();
 
       let raw;
 
-      if (mobile) {
+      if (activeMobile) {
 
-        const dist = e.clientX - rect.left;
+        const dist = e.clientX - activeTrackRect.left;
 
-        raw = dist / rect.width;
+        raw = dist / activeTrackRect.width;
 
       } else {
 
-        const dist = rect.bottom - e.clientY;
+        const dist = activeTrackRect.bottom - e.clientY;
 
-        raw = dist / rect.height;
+        raw = dist / activeTrackRect.height;
 
       }
 
 
 
-      const minF = i > 0 ? state.bandFractions[i - 1] + 0.03 : 0.02;
+      const MIN_BOUND = 0.02;
 
-      const maxF = i < 3 ? state.bandFractions[i + 1] - 0.03 : 0.98;
+      const MAX_BOUND = 0.98;
 
-      state.bandFractions[i] = Math.max(minF, Math.min(maxF, raw));
+      const MIN_GAP = 0.02;
 
 
 
-      let [cmin, cmax] = mapColorRange();
+      const minPossible = MIN_BOUND + i * MIN_GAP;
 
-      if (cmin === cmax) cmax = cmin + 1;
+      const maxPossible = MAX_BOUND - (3 - i) * MIN_GAP;
 
-      renderColorbarBandsAndHandles(cmin, cmax);
+      state.bandFractions[i] = Math.max(minPossible, Math.min(maxPossible, raw));
 
-      applyBandClassificationToMap();
+
+
+      // Push / bump adjacent handles forward (upward)
+
+      for (let k = i + 1; k < 4; k++) {
+
+        if (state.bandFractions[k] < state.bandFractions[k - 1] + MIN_GAP) {
+
+          state.bandFractions[k] = state.bandFractions[k - 1] + MIN_GAP;
+
+        }
+
+      }
+
+
+
+      // Push / bump adjacent handles backward (downward)
+
+      for (let k = i - 1; k >= 0; k--) {
+
+        if (state.bandFractions[k] > state.bandFractions[k + 1] - MIN_GAP) {
+
+          state.bandFractions[k] = state.bandFractions[k + 1] - MIN_GAP;
+
+        }
+
+      }
+
+
+
+      if (!dragRafId) {
+
+        dragRafId = requestAnimationFrame(() => {
+
+          dragRafId = null;
+
+          renderColorbarBandsAndHandles(activeCmin, activeCmax, true);
+
+          applyBandClassificationToMap(false);
+
+        });
+
+      }
 
     };
 
@@ -10692,13 +11115,31 @@ function initInteractiveColorbar() {
 
       if (activeColorbarHandle === i) {
 
+        if (dragRafId) {
+
+          cancelAnimationFrame(dragRafId);
+
+          dragRafId = null;
+
+        }
+
         try { handle.releasePointerCapture(e.pointerId); } catch {}
 
         activeColorbarHandle = null;
 
+        activeTrackRect = null;
+
         handle.classList.remove("dragging");
 
-        applyBandClassificationToMap();
+        bar?.classList.remove("is-dragging");
+
+        let [cmin, cmax] = mapColorRange();
+
+        if (cmin === cmax) cmax = cmin + 1;
+
+        renderColorbarBandsAndHandles(cmin, cmax, false);
+
+        applyBandClassificationToMap(true);
 
       }
 
@@ -10717,8 +11158,6 @@ function initInteractiveColorbar() {
   }
 
 }
-
-
 
 window.addEventListener("resize", handleViewportResize);
 
