@@ -54,3 +54,13 @@
 ## Version 1.1.4.1 (10/30/2026)
 - Greatly reworked insurance popup to include calculator to estimate home insurance rates (BETA)
 - Reworked colorbar to allow users to make custom ranges for enhanced data exploration
+
+## Version 1.1.4.2 (11/9/2026)
+- Added reinsurance breakdown to insurance popup
+- Reworked mobile bugs with not being able to click areas
+- Reworked mobile bug with text not lining up on the screen
+
+## Version 1.1.4.3 (11/12/2026)
+- Added agricultural values to map dropdown
+- Fixed bug with color bar sliders lagging
+- More mobile bug fixes 
