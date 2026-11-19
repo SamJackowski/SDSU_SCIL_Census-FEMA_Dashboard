@@ -426,19 +426,27 @@
 
         <div id="customDrawControls" class="custom-draw-controls">
 
-          <button type="button" id="drawPolygonBtn" class="draw-tool-btn">
+          <button type="button" id="drawPolygonBtn" class="draw-tool-btn" title="Draw polygon to filter areas">
 
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l10 6.5v7L12 22 2 15.5v-7L12 2z"></path></svg>
 
-            Draw Tool
+            <span>Draw Tool</span>
 
           </button>
 
-          <button type="button" id="clearPolygonBtn" class="draw-tool-btn hidden">
+          <button type="button" id="toggleCompareBtn" class="draw-tool-btn compare-tool-btn" title="Toggle side-by-side comparison swiper">
 
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
 
-            Clear
+            <span id="toggleCompareBtnText">Split Map</span>
+
+          </button>
+
+          <button type="button" id="toggleBivariateBtn" class="draw-tool-btn bivariate-tool-btn" title="Toggle 2D Bivariate Risk Matrix Map">
+
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+
+            <span id="toggleBivariateBtnText">Bivariate</span>
 
           </button>
 
@@ -470,9 +478,41 @@
 
         </div>
 
-        <div id="mapChart" class="chart map-chart"></div>
+        <div id="mapComparisonWrap" class="map-comparison-wrap">
+          <div id="mapChart" class="chart map-chart"></div>
 
-        <div id="tractMap" class="chart map-chart hidden"></div>
+          <div id="tractMap" class="chart map-chart hidden"></div>
+
+          <!-- Secondary Comparison Map (Right / Clipped) -->
+          <div id="compareMap" class="chart map-chart compare-map hidden"></div>
+
+          <!-- Swiper Draggable Divider -->
+          <div id="compareSwiper" class="compare-swiper hidden">
+            <div class="compare-swiper-line"></div>
+            <div class="compare-swiper-handle" title="Drag left/right to compare">
+              <span class="compare-swiper-arrow">◀▶</span>
+            </div>
+          </div>
+
+          <!-- Floating Comparison Control Bar -->
+          <div id="compareControlBar" class="compare-control-bar hidden">
+            <div class="compare-pill-item compare-pill-left">
+              <span class="compare-pill-badge left-badge" id="compareLeftBadge">Left</span>
+              <strong id="compareLeftVarLabel" class="compare-pill-text">Primary Variable</strong>
+            </div>
+
+            <div class="compare-pill-divider" id="comparePillDivider">vs</div>
+
+            <div class="compare-pill-item compare-pill-right">
+              <span class="compare-pill-badge right-badge" id="compareRightBadge">Right</span>
+              <select id="compareRightVarSelect" class="compare-select" aria-label="Select comparison variable">
+                <!-- populated dynamically -->
+              </select>
+            </div>
+
+            <button type="button" id="closeCompareBtn" class="compare-close-btn" title="Exit comparison mode" aria-label="Exit compare mode">&times;</button>
+          </div>
+        </div>
 
         <div id="interactiveColorbar" class="interactive-colorbar">
 
@@ -508,69 +548,222 @@
 
             <div class="colorbar-track-container" id="colorbarTrackContainer">
 
-              <div class="colorbar-track" id="colorbarTrack">
-
-                <div class="color-band band-0" id="colorBand0" title="Band 1 (Lowest)"></div>
-
-                <div class="color-band band-1" id="colorBand1" title="Band 2"></div>
-
-                <div class="color-band band-2" id="colorBand2" title="Band 3"></div>
-
-                <div class="color-band band-3" id="colorBand3" title="Band 4"></div>
-
-                <div class="color-band band-4" id="colorBand4" title="Band 5 (Highest)"></div>
-
+              <!-- Split Mode Values: Left Column (Left Map Variable) -->
+              <div class="colorbar-split-col split-col-left hidden" id="colorbarSplitLeft">
+                <div class="split-col-header">
+                  <div class="split-mini-actions">
+                    <button type="button" id="splitLeftEqualBtn" class="split-mini-btn" title="Left Equal intervals">Eq</button>
+                    <button type="button" id="splitLeftQuantBtn" class="split-mini-btn" title="Left Quantiles">Quant</button>
+                  </div>
+                  <span class="compare-pill-badge left-badge">Left</span>
+                </div>
+                <div class="split-limit split-limit-max" id="splitLeftMax">-</div>
+                <div class="split-tag" id="splitLeftTag3">-</div>
+                <div class="split-tag" id="splitLeftTag2">-</div>
+                <div class="split-tag" id="splitLeftTag1">-</div>
+                <div class="split-tag" id="splitLeftTag0">-</div>
+                <div class="split-limit split-limit-min" id="splitLeftMin">-</div>
               </div>
 
-              <div class="colorbar-handle" id="colorbarHandle3" data-handle="3" title="Drag to adjust cutoff">
+              <!-- Dual Tracks Container -->
+              <div class="colorbar-dual-tracks" id="colorbarDualTracks">
+                <!-- Left Track (Single Mode or Left Split Track) -->
+                <div class="colorbar-track track-left" id="colorbarTrack">
+                  <div class="color-band band-0" id="colorBand0" title="Band 1 (Lowest)"></div>
+                  <div class="color-band band-1" id="colorBand1" title="Band 2"></div>
+                  <div class="color-band band-2" id="colorBand2" title="Band 3"></div>
+                  <div class="color-band band-3" id="colorBand3" title="Band 4"></div>
+                  <div class="color-band band-4" id="colorBand4" title="Band 5 (Highest)"></div>
+                </div>
 
-                <div class="handle-line"></div>
+                <!-- Left Track Handles -->
+                <div class="colorbar-handle handle-left" id="colorbarHandle3" data-handle="3" title="Drag to adjust Left cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                  <div class="handle-tag" id="handleTag3">-</div>
+                </div>
+                <div class="colorbar-handle handle-left" id="colorbarHandle2" data-handle="2" title="Drag to adjust Left cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                  <div class="handle-tag" id="handleTag2">-</div>
+                </div>
+                <div class="colorbar-handle handle-left" id="colorbarHandle1" data-handle="1" title="Drag to adjust Left cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                  <div class="handle-tag" id="handleTag1">-</div>
+                </div>
+                <div class="colorbar-handle handle-left" id="colorbarHandle0" data-handle="0" title="Drag to adjust Left cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                  <div class="handle-tag" id="handleTag0">-</div>
+                </div>
 
-                <div class="handle-thumb"></div>
+                <!-- Right Track (Split Mode only) -->
+                <div class="colorbar-track track-right hidden" id="colorbarTrackRight">
+                  <div class="color-band band-0" id="compareBand0" title="Right Band 1 (Lowest)"></div>
+                  <div class="color-band band-1" id="compareBand1" title="Right Band 2"></div>
+                  <div class="color-band band-2" id="compareBand2" title="Right Band 3"></div>
+                  <div class="color-band band-3" id="compareBand3" title="Right Band 4"></div>
+                  <div class="color-band band-4" id="compareBand4" title="Right Band 5 (Highest)"></div>
+                </div>
 
-                <div class="handle-tag" id="handleTag3">-</div>
-
-              </div>
-
-              <div class="colorbar-handle" id="colorbarHandle2" data-handle="2" title="Drag to adjust cutoff">
-
-                <div class="handle-line"></div>
-
-                <div class="handle-thumb"></div>
-
-                <div class="handle-tag" id="handleTag2">-</div>
-
-              </div>
-
-              <div class="colorbar-handle" id="colorbarHandle1" data-handle="1" title="Drag to adjust cutoff">
-
-                <div class="handle-line"></div>
-
-                <div class="handle-thumb"></div>
-
-                <div class="handle-tag" id="handleTag1">-</div>
-
-              </div>
-
-              <div class="colorbar-handle" id="colorbarHandle0" data-handle="0" title="Drag to adjust cutoff">
-
-                <div class="handle-line"></div>
-
-                <div class="handle-thumb"></div>
-
-                <div class="handle-tag" id="handleTag0">-</div>
-
+                <!-- Right Track Handles (Split Mode only) -->
+                <div class="colorbar-handle handle-right" id="compareHandle3" data-handle="3" title="Drag to adjust Right cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                </div>
+                <div class="colorbar-handle handle-right" id="compareHandle2" data-handle="2" title="Drag to adjust Right cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                </div>
+                <div class="colorbar-handle handle-right" id="compareHandle1" data-handle="1" title="Drag to adjust Right cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                </div>
+                <div class="colorbar-handle handle-right" id="compareHandle0" data-handle="0" title="Drag to adjust Right cutoff">
+                  <div class="handle-line"></div>
+                  <div class="handle-thumb"></div>
+                </div>
               </div>
 
               <div class="colorbar-limit limit-max" id="colorbarLimitMax">-</div>
-
               <div class="colorbar-limit limit-min" id="colorbarLimitMin">-</div>
 
+              <!-- Split Mode Values: Right Column (Right Map Variable) -->
+              <div class="colorbar-split-col split-col-right hidden" id="colorbarSplitRight">
+                <div class="split-col-header">
+                  <span class="compare-pill-badge right-badge">Right</span>
+                  <div class="split-mini-actions">
+                    <button type="button" id="splitRightEqualBtn" class="split-mini-btn" title="Right Equal intervals">Eq</button>
+                    <button type="button" id="splitRightQuantBtn" class="split-mini-btn" title="Right Quantiles">Quant</button>
+                  </div>
+                </div>
+                <div class="split-limit split-limit-max" id="splitRightMax">-</div>
+                <div class="split-tag" id="splitRightTag3">-</div>
+                <div class="split-tag" id="splitRightTag2">-</div>
+                <div class="split-tag" id="splitRightTag1">-</div>
+                <div class="split-tag" id="splitRightTag0">-</div>
+                <div class="split-limit split-limit-min" id="splitRightMin">-</div>
+              </div>
+
+            </div>
+
+            <!-- Bivariate 2D Legend Matrix Container -->
+            <div class="bivariate-legend-container hidden" id="bivariateLegendContainer">
+              <div class="bivariate-legend-header">
+                <div class="bivariate-legend-title-group">
+                  <span class="bivariate-legend-title">Bivariate 2D Matrix</span>
+                  <span class="bivariate-legend-badge">3&times;3 Tiers</span>
+                </div>
+                <button type="button" id="bivariateResetFilterBtn" class="bivariate-reset-btn hidden" title="Clear cell filter">&times; Reset</button>
+              </div>
+
+              <!-- Interactive 2D Matrix with Aligned Tier Labels -->
+              <div class="bivariate-matrix-diagram">
+                <!-- Y-Axis Vertical Label -->
+                <div class="bivariate-y-axis-container">
+                  <div class="bivariate-axis-label-vertical" id="bivariateAxisYLabel">&#9650; Variable Y</div>
+                </div>
+
+                <!-- Center Core: Row Tiers + 3x3 Matrix Grid -->
+                <div class="bivariate-matrix-core">
+                  <div class="bivariate-row-labels">
+                    <span class="tier-label tier-high">High</span>
+                    <span class="tier-label tier-med">Med</span>
+                    <span class="tier-label tier-low">Low</span>
+                  </div>
+
+                  <div class="bivariate-matrix" id="bivariateMatrix" role="grid" aria-label="3x3 Bivariate Color Matrix">
+                    <!-- Row 2: High Y (Cells 6, 7, 8) -->
+                    <button type="button" class="bivariate-cell" data-cell="6" title="Low X, High Y"></button>
+                    <button type="button" class="bivariate-cell" data-cell="7" title="Med X, High Y"></button>
+                    <button type="button" class="bivariate-cell priority-cell" data-cell="8" title="High X, High Y (Critical Area)"></button>
+                    <!-- Row 1: Med Y (Cells 3, 4, 5) -->
+                    <button type="button" class="bivariate-cell" data-cell="3" title="Low X, Med Y"></button>
+                    <button type="button" class="bivariate-cell" data-cell="4" title="Med X, Med Y"></button>
+                    <button type="button" class="bivariate-cell" data-cell="5" title="High X, Med Y"></button>
+                    <!-- Row 0: Low Y (Cells 0, 1, 2) -->
+                    <button type="button" class="bivariate-cell" data-cell="0" title="Low X, Low Y"></button>
+                    <button type="button" class="bivariate-cell" data-cell="1" title="Med X, Low Y"></button>
+                    <button type="button" class="bivariate-cell" data-cell="2" title="High X, Low Y"></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- X-Axis Column Tiers & Horizontal Label -->
+              <div class="bivariate-x-axis-container">
+                <div class="bivariate-col-labels">
+                  <span class="tier-label tier-low">Low</span>
+                  <span class="tier-label tier-med">Med</span>
+                  <span class="tier-label tier-high">High</span>
+                </div>
+                <div class="bivariate-axis-label-horizontal" id="bivariateAxisXLabel">Variable X &#9654;</div>
+              </div>
+
+              <!-- Realtime Cell Inspector Banner -->
+              <div class="bivariate-inspector" id="bivariateInspector">
+                <span class="biv-inspector-swatch" id="bivInspectorSwatch"></span>
+                <div class="biv-inspector-text">
+                  <div class="biv-inspector-title" id="bivInspectorTitle">Showing all 9 risk groups</div>
+                  <div class="biv-inspector-desc" id="bivInspectorDesc">Hover a tile to inspect scale | Click to filter</div>
+                </div>
+              </div>
+
+              <!-- Structured Scale Breakdown (Two Distinct Cards: X and Y) -->
+              <button type="button" id="bivariateToggleDetailsBtn" class="biv-toggle-details-btn" title="Toggle cutoff ranges">
+                <span class="biv-toggle-text">Scale Cutoffs</span>
+                <span class="biv-toggle-chevron">▾</span>
+              </button>
+              <div class="bivariate-scale-breakdown" id="bivariateScaleBreakdown">
+                <!-- X Card (Teal) -->
+                <div class="biv-scale-card biv-scale-card-x">
+                  <div class="biv-scale-card-header">
+                    <span class="biv-axis-badge x-badge">X</span>
+                    <span class="biv-scale-varname" id="bivScaleNameX">Variable X</span>
+                  </div>
+                  <div class="biv-tier-list">
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">Low</span>
+                      <span class="biv-tier-val" id="bivRangeX0">&lt; -</span>
+                    </div>
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">Med</span>
+                      <span class="biv-tier-val" id="bivRangeX1">- &ndash; -</span>
+                    </div>
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">High</span>
+                      <span class="biv-tier-val" id="bivRangeX2">&gt; -</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Y Card (Magenta) -->
+                <div class="biv-scale-card biv-scale-card-y">
+                  <div class="biv-scale-card-header">
+                    <span class="biv-axis-badge y-badge">Y</span>
+                    <span class="biv-scale-varname" id="bivScaleNameY">Variable Y</span>
+                  </div>
+                  <div class="biv-tier-list">
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">Low</span>
+                      <span class="biv-tier-val" id="bivRangeY0">&lt; -</span>
+                    </div>
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">Med</span>
+                      <span class="biv-tier-val" id="bivRangeY1">- &ndash; -</span>
+                    </div>
+                    <div class="biv-tier-row">
+                      <span class="biv-tier-pill">High</span>
+                      <span class="biv-tier-val" id="bivRangeY2">&gt; -</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
 
-          <div id="colorbarZeroNotice" class="colorbar-zero-notice hidden">
+                    <div id="colorbarZeroNotice" class="colorbar-zero-notice hidden">
 
             <span class="zero-swatch"></span>
 

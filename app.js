@@ -12,6 +12,9 @@ import { createStatsExplorer } from "./stats-explorer.js";
 
 import { createRiskCard } from "./risk-card.js";
 
+import { createMapCompare } from "./compare-map.js";
+import { createBivariateMap } from "./bivariate-map.js";
+
 
 
 const pmtilesProtocol = new Protocol();
@@ -1101,6 +1104,9 @@ let tractMap = null;
 
 let mapDraw = null;
 
+let mapCompare = null;
+let bivariateMap = null;
+
 let tractLegend = null;
 
 let tractHoverPopup = null;
@@ -1170,6 +1176,8 @@ let state = {
   statsView: "overview",
 
   bandFractions: [0.20, 0.40, 0.60, 0.80],
+
+  compareBandFractions: [0.20, 0.40, 0.60, 0.80],
 
 };
 
@@ -6383,6 +6391,8 @@ function render() {
 
   els.dashboardTitle.textContent = `${variableLabel(state.variable)} in ${area} (${state.year})`;
 
+  els.dashboardTitle.title = els.dashboardTitle.textContent;
+
   els.dashboardMeta.innerHTML =
 
     `<b>Variable:</b> ${variableLabel(state.variable)} &nbsp; | &nbsp; ` +
@@ -6394,6 +6404,8 @@ function render() {
     `<b>Area:</b> ${area} &nbsp; | &nbsp; ` +
 
     `<b>Rows:</b> ${data.length.toLocaleString()}`;
+
+  els.dashboardMeta.title = els.dashboardMeta.textContent;
 
 
 
@@ -8376,6 +8388,10 @@ els.dashboardTabs.addEventListener("click", (event) => {
   stopYearAnimation();
 
   state.activeTab = button.dataset.tab;
+  if (state.activeTab !== "map") {
+    if (mapCompare && mapCompare.isActive()) mapCompare.disable();
+    if (bivariateMap && bivariateMap.isActive()) bivariateMap.disable();
+  }
 
   render();
 
@@ -8651,6 +8667,76 @@ function ensureTractBoundaryVintage() {
 
 
 
+const DRAW_TOOL_ICON_HTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l10 6.5v7L12 22 2 15.5v-7L12 2z"></path></svg> <span>Draw Tool</span>`;
+const CLEAR_TOOL_ICON_HTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg> <span>Clear</span>`;
+
+function updateDrawButtonUI(isClear) {
+  if (!els.drawPolygonBtn) return;
+  if (isClear) {
+    els.drawPolygonBtn.innerHTML = CLEAR_TOOL_ICON_HTML;
+    els.drawPolygonBtn.classList.add("is-clear");
+    els.drawPolygonBtn.setAttribute("title", "Clear drawn area");
+  } else {
+    els.drawPolygonBtn.innerHTML = DRAW_TOOL_ICON_HTML;
+    els.drawPolygonBtn.classList.remove("is-clear");
+    els.drawPolygonBtn.setAttribute("title", "Draw polygon to filter areas");
+  }
+}
+
+let lastDrawFinishTime = 0;
+
+function isDrawModeActive() {
+  if (!mapDraw) return false;
+  const mode = typeof mapDraw.getMode === "function" ? mapDraw.getMode() : null;
+  return mode === "draw_polygon" || mode === "draw_line_string" || mode === "draw_point" || mode === "direct_select";
+}
+
+let drawUpdateTimer = null;
+function debouncedUpdateDrawSelection(delay = 100) {
+  if (drawUpdateTimer) clearTimeout(drawUpdateTimer);
+  drawUpdateTimer = setTimeout(() => {
+    updateDrawSelection();
+  }, delay);
+}
+
+const featureCentroidCache = new Map();
+
+function getFeatureCentroid(feature, id) {
+  if (id && featureCentroidCache.has(id)) {
+    return featureCentroidCache.get(id);
+  }
+  try {
+    const geojsonFeature = typeof feature?.toJSON === "function" ? feature.toJSON() : feature;
+    if (!geojsonFeature?.geometry) return null;
+    const pt = centroid(geojsonFeature)?.geometry?.coordinates;
+    if (pt && id) {
+      featureCentroidCache.set(id, pt);
+    }
+    return pt;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getPolygonBBox(polygon) {
+  if (!polygon?.geometry?.coordinates) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const geomType = polygon.geometry.type;
+  const coords = polygon.geometry.coordinates;
+  const rings = geomType === "Polygon" ? coords : coords.flat(1);
+  for (let i = 0; i < rings.length; i++) {
+    const ring = rings[i];
+    for (let j = 0; j < ring.length; j++) {
+      const pt = ring[j];
+      if (pt[0] < minX) minX = pt[0];
+      if (pt[0] > maxX) maxX = pt[0];
+      if (pt[1] < minY) minY = pt[1];
+      if (pt[1] > maxY) maxY = pt[1];
+    }
+  }
+  return Number.isFinite(minX) ? [minX, minY, maxX, maxY] : null;
+}
+
 function drawnPolygon() {
 
   return mapDraw?.getAll()?.features?.find((feature) =>
@@ -8663,23 +8749,22 @@ function drawnPolygon() {
 
 
 
-function centroidInsideDrawnPolygon(feature, polygon) {
+function centroidInsideDrawnPolygon(feature, polygon, id = null, polyBBox = null) {
 
   try {
 
-    const geojsonFeature = typeof feature?.toJSON === "function"
+    const pt = getFeatureCentroid(feature, id);
+    if (!pt) return false;
 
-      ? feature.toJSON()
+    // Fast bounding box rejection (avoids expensive polygon ray-casting for outside features)
+    if (polyBBox) {
+      const [minX, minY, maxX, maxY] = polyBBox;
+      if (pt[0] < minX || pt[0] > maxX || pt[1] < minY || pt[1] > maxY) {
+        return false;
+      }
+    }
 
-      : feature;
-
-    return Boolean(
-
-      geojsonFeature?.geometry &&
-
-      booleanPointInPolygon(centroid(geojsonFeature), polygon),
-
-    );
+    return booleanPointInPolygon(pt, polygon);
 
   } catch (error) {
 
@@ -8701,38 +8786,34 @@ function updateDrawSelection({ rerender = true } = {}) {
 
   drawnAreaActive = Boolean(polygon);
 
-  
+  updateDrawButtonUI(drawnAreaActive || isDrawModeActive());
 
-  els.clearPolygonBtn.classList.toggle("hidden", !drawnAreaActive);
+  if (els.clearPolygonBtn) {
+    els.clearPolygonBtn.classList.toggle("hidden", !drawnAreaActive);
+  }
 
+  if (polygon) {
+    const polyBBox = getPolygonBBox(polygon);
 
+    if (state.geography === "tract" && tractMap?.getSource("us-tracts")) {
+      const seen = new Set();
+      tractMap
+        .querySourceFeatures("us-tracts", { sourceLayer: "tracts" })
+        .forEach((feature) => {
+          const geoid = String(feature.id).padStart(11, "0");
+          if (seen.has(geoid)) return;
+          seen.add(geoid);
 
-
-
-  if (polygon && state.geography === "tract" && tractMap?.getSource("us-tracts")) {
-
-    tractMap
-
-      .querySourceFeatures("us-tracts", { sourceLayer: "tracts" })
-
-      .forEach((feature) => {
-
-        if (!centroidInsideDrawnPolygon(feature, polygon)) return;
-
-        drawnGeoids.add(String(feature.id).padStart(11, "0"));
-
+          if (!centroidInsideDrawnPolygon(feature, polygon, geoid, polyBBox)) return;
+          drawnGeoids.add(geoid);
+        });
+    } else if (geojson?.features) {
+      geojson.features.forEach((feature) => {
+        const id = adminFeatureId(feature);
+        if (!centroidInsideDrawnPolygon(feature, polygon, id, polyBBox)) return;
+        drawnGeoids.add(id);
       });
-
-  } else if (polygon && geojson?.features) {
-
-    geojson.features.forEach((feature) => {
-
-      if (!centroidInsideDrawnPolygon(feature, polygon)) return;
-
-      drawnGeoids.add(adminFeatureId(feature));
-
-    });
-
+    }
   }
 
 
@@ -8773,6 +8854,8 @@ function updateDrawSelection({ rerender = true } = {}) {
 
 function handleDrawCreate(event) {
 
+  lastDrawFinishTime = Date.now();
+
   const newestId = event.features?.[0]?.id;
 
   const olderIds = mapDraw
@@ -8788,6 +8871,7 @@ function handleDrawCreate(event) {
   if (olderIds.length) mapDraw.delete(olderIds);
 
   updateDrawSelection();
+  updateDrawButtonUI(true);
 
 }
 
@@ -8845,27 +8929,60 @@ function initTractMap() {
 
   
 
-  els.drawPolygonBtn.addEventListener("click", () => {
+  els.drawPolygonBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (drawnAreaActive || isDrawModeActive()) {
+      lastDrawFinishTime = Date.now();
+      mapDraw?.deleteAll();
+      mapDraw?.changeMode("simple_select");
+      updateDrawSelection();
+      updateDrawButtonUI(false);
+      return;
+    }
 
-    mapDraw.changeMode("draw_polygon");
-
+    mapDraw?.changeMode("draw_polygon");
+    updateDrawButtonUI(true);
+    tractHoverPopup?.remove();
   });
 
   
 
-  els.clearPolygonBtn.addEventListener("click", () => {
+  els.clearPolygonBtn?.addEventListener("click", () => {
 
-    mapDraw.deleteAll();
+    lastDrawFinishTime = Date.now();
+    mapDraw?.deleteAll();
+    mapDraw?.changeMode("simple_select");
 
     updateDrawSelection();
+    updateDrawButtonUI(false);
 
   });
 
   tractMap.on("draw.create", handleDrawCreate);
 
-  tractMap.on("draw.update", () => updateDrawSelection());
+  tractMap.on("draw.update", () => debouncedUpdateDrawSelection(100));
 
-  tractMap.on("draw.delete", () => updateDrawSelection());
+  tractMap.on("draw.delete", () => {
+    updateDrawSelection();
+    updateDrawButtonUI(drawnAreaActive);
+  });
+
+  tractMap.on("draw.modechange", (event) => {
+    if (event.mode === "draw_polygon") {
+      updateDrawButtonUI(true);
+      tractHoverPopup?.remove();
+      tractMap.getCanvas().style.cursor = "crosshair";
+    } else {
+      lastDrawFinishTime = Date.now();
+      updateDrawButtonUI(drawnAreaActive);
+    }
+  });
+
+  tractMap.on("dblclick", (event) => {
+    if (isDrawModeActive() || Date.now() - lastDrawFinishTime < 600) {
+      event.preventDefault();
+    }
+  });
 
 
 
@@ -8971,6 +9088,8 @@ function initTractMap() {
 
     tractMap.on("mouseenter", "tract-fill", () => {
 
+      if (isDrawModeActive()) return;
+
       tractMap.getCanvas().style.cursor = "pointer";
 
     });
@@ -8978,6 +9097,14 @@ function initTractMap() {
 
 
     tractMap.on("mouseleave", "tract-fill", () => {
+
+      if (isDrawModeActive()) {
+
+        tractHoverPopup?.remove();
+
+        return;
+
+      }
 
       tractMap.getCanvas().style.cursor = "";
 
@@ -8988,6 +9115,8 @@ function initTractMap() {
 
 
     tractMap.on("mouseenter", "admin-fill", () => {
+
+      if (isDrawModeActive()) return;
 
       tractMap.getCanvas().style.cursor = "pointer";
 
@@ -9006,6 +9135,8 @@ function initTractMap() {
     const openFeatureRiskCard = (feature, geog) => {
 
       if (!feature) return;
+
+      if (isDrawModeActive() || Date.now() - lastDrawFinishTime < 600) return;
 
       const featureId = geog === "tract"
 
@@ -9053,6 +9184,8 @@ function initTractMap() {
 
     tractMap.on("touchend", (event) => {
 
+      if (isDrawModeActive() || Date.now() - lastDrawFinishTime < 600) return;
+
       if (!touchStartPoint) return;
 
       const elapsed = Date.now() - touchStartTime;
@@ -9091,6 +9224,8 @@ function initTractMap() {
 
     tractMap.on("click", "admin-fill", (event) => {
 
+      if (isDrawModeActive() || Date.now() - lastDrawFinishTime < 600) return;
+
       if (Date.now() - lastRiskCardOpenTime < 450) return;
 
       const feature = event.features?.[0];
@@ -9102,6 +9237,8 @@ function initTractMap() {
 
 
     tractMap.on("click", "tract-fill", (event) => {
+
+      if (isDrawModeActive() || Date.now() - lastDrawFinishTime < 600) return;
 
       if (Date.now() - lastRiskCardOpenTime < 450) return;
 
@@ -9115,6 +9252,14 @@ function initTractMap() {
 
     tractMap.on("mouseleave", "admin-fill", () => {
 
+      if (isDrawModeActive()) {
+
+        tractHoverPopup?.remove();
+
+        return;
+
+      }
+
       tractMap.getCanvas().style.cursor = "";
 
       tractHoverPopup?.remove();
@@ -9124,6 +9269,14 @@ function initTractMap() {
 
 
     tractMap.on("mousemove", "admin-fill", (event) => {
+
+      if (isDrawModeActive()) {
+
+        tractHoverPopup?.remove();
+
+        return;
+
+      }
 
       if (isMobile()) return;
 
@@ -9146,6 +9299,20 @@ function initTractMap() {
       const row = adminMapRows.get(featureId);
 
       if (!row) return;
+
+      if (bivariateMap && bivariateMap.isActive()) {
+        if (!tractHoverPopup) {
+          tractHoverPopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 12,
+            maxWidth: "340px",
+            className: "tract-hover-popup",
+          });
+        }
+        bivariateMap.renderHoverPopup(event, featureId, row, tractHoverPopup);
+        return;
+      }
 
 
 
@@ -9207,6 +9374,14 @@ function initTractMap() {
 
     tractMap.on("mousemove", "tract-fill", (event) => {
 
+      if (isDrawModeActive()) {
+
+        tractHoverPopup?.remove();
+
+        return;
+
+      }
+
       if (isMobile()) return;
 
       const feature = event.features?.[0];
@@ -9216,6 +9391,20 @@ function initTractMap() {
 
 
       const geoid = String(feature.id).padStart(11, "0");
+
+      if (bivariateMap && bivariateMap.isActive()) {
+        if (!tractHoverPopup) {
+          tractHoverPopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 12,
+            maxWidth: "340px",
+            className: "tract-hover-popup",
+          });
+        }
+        bivariateMap.renderHoverPopup(event, geoid, null, tractHoverPopup);
+        return;
+      }
 
       const { value } = tractMap.getFeatureState({
 
@@ -9315,6 +9504,58 @@ function initTractMap() {
 
       renderAdminMap(pendingAdminData);
 
+    }
+
+    if (!mapCompare) {
+      mapCompare = createMapCompare({
+        maplibregl,
+        getTractMap: () => tractMap,
+        getState: () => state,
+        isDarkMode,
+        variableLabel,
+        formatValue,
+        colorRange,
+        tractColorRamp,
+        getTractStepFillExpression,
+        getTractRowsByState: () => tractRowsByState,
+        getAdminMapRows: () => adminMapRows,
+        getAdminGeojson: () => geojson,
+        US_TRACTS_PMTILES_URLS,
+        desiredTractBoundaryVintage,
+        toNumber,
+        getAllVariables: () => variables,
+        variableGroup,
+        VARIABLE_GROUP_ORDER,
+        isZeroIgnoredVariable,
+        mapColorRange,
+        updateInteractiveColorbar: () => updateInteractiveColorbar(),
+        ensureTractVariableLoaded: (v) => ensureTractVariableLoaded(v),
+      });
+    }
+
+    if (!bivariateMap) {
+      bivariateMap = createBivariateMap({
+        getTractMap: () => tractMap,
+        getState: () => state,
+        isDarkMode,
+        variableLabel,
+        formatValue,
+        getAdminMapRows: () => adminMapRows,
+        getAdminGeojson: () => geojson,
+        getTractRowsByState: () => tractRowsByState,
+        getAllVariables: () => variables,
+        variableGroup,
+        VARIABLE_GROUP_ORDER,
+        isZeroIgnoredVariable,
+        toNumber,
+        applySingleClassification: () => applyBandClassificationToMap(true),
+        updateInteractiveColorbar: () => updateInteractiveColorbar(),
+        getMapCompare: () => mapCompare,
+        ensureTractVariableLoaded: (v) => ensureTractVariableLoaded(v),
+      });
+      if (mapCompare) {
+        mapCompare.setBivariateMap(bivariateMap);
+      }
     }
 
   });
@@ -9647,6 +9888,9 @@ function renderAdminMap(data) {
 
   updateInteractiveColorbar();
 
+  mapCompare?.update();
+  bivariateMap?.update();
+
 
 
   const fitKey = [
@@ -9935,6 +10179,23 @@ async function loadTractStateData(
 
         tractRowsByState.set(stateFips, normalizedRows);
 
+        if (mapCompare && mapCompare.isActive()) {
+          const cmpVar = mapCompare.getCompareVariable();
+          if (cmpVar && cmpVar !== variable) {
+            ensureTractVariableLoaded(cmpVar).then(() => {
+              mapCompare.update();
+            });
+          }
+        }
+        if (bivariateMap && bivariateMap.isActive()) {
+          const bivVar = bivariateMap.getYVariable();
+          if (bivVar && bivVar !== variable) {
+            ensureTractVariableLoaded(bivVar).then(() => {
+              bivariateMap.applyClassification();
+            });
+          }
+        }
+
         if (updateUi) {
 
           refreshTractMapValues();
@@ -9973,6 +10234,82 @@ async function loadTractStateData(
 
   return loadPromise;
 
+}
+
+const tractSecondVarPromises = new Map();
+
+async function ensureTractVariableLoaded(variable) {
+  if (state.geography !== "tract" || !variable || isGlobalVariable(variable)) return;
+
+  if (!tractRowsByState.size) {
+    try {
+      await loadVisibleTractStateData();
+    } catch {}
+  }
+
+  const states = [...tractRowsByState.keys()];
+  if (!states.length) return;
+
+  const statesNeedingLoad = states.filter((stFips) => {
+    const rows = tractRowsByState.get(stFips);
+    return rows && rows.length && !(variable in rows[0]);
+  });
+
+  if (!statesNeedingLoad.length) return;
+
+  await Promise.all(
+    statesNeedingLoad.map(async (stFips) => {
+      const cacheKey = `${stFips}|${variable}`;
+      if (tractSecondVarPromises.has(cacheKey)) {
+        return tractSecondVarPromises.get(cacheKey);
+      }
+
+      const p = (async () => {
+        try {
+          let valueRows = tractVariableRowsCache.get(cacheKey);
+          if (!valueRows) {
+            valueRows = await loadParquet(`data/tract_variables/${stFips}/${variable}.parquet`);
+            if (valueRows?.length) {
+              tractVariableRowsCache.set(cacheKey, valueRows);
+            }
+          }
+          if (!valueRows || !valueRows.length) return;
+
+          const stateRows = tractRowsByState.get(stFips);
+          if (stateRows && stateRows.length) {
+            const valMapByYear = new Map();
+            const valMapLatest = new Map();
+            valueRows.forEach((vr) => {
+              const gid = String(vr.GEOID ?? "").padStart(11, "0");
+              const yr = Number(vr.year);
+              const v = vr[variable] !== undefined ? vr[variable] : vr.value;
+              valMapByYear.set(`${gid}|${yr}`, v);
+              valMapLatest.set(gid, v);
+            });
+
+            stateRows.forEach((sr) => {
+              const gid = String(sr.GEOID ?? "").padStart(11, "0");
+              const yr = Number(sr.year);
+              let v = valMapByYear.get(`${gid}|${yr}`);
+              if (v === undefined) {
+                v = valMapLatest.get(gid);
+              }
+              if (v !== undefined) {
+                sr[variable] = v;
+              }
+            });
+          }
+        } catch (err) {
+          console.warn(`Could not load second tract variable ${variable} for state ${stFips}:`, err);
+        } finally {
+          tractSecondVarPromises.delete(cacheKey);
+        }
+      })();
+
+      tractSecondVarPromises.set(cacheKey, p);
+      return p;
+    })
+  );
 }
 
 
@@ -10172,6 +10509,9 @@ function refreshTractMapValues() {
 
 
   updateInteractiveColorbar();
+
+  mapCompare?.update();
+  bivariateMap?.update();
 
 
 
@@ -10411,6 +10751,11 @@ function applyBandClassificationToMap(immediate = false) {
 
 function _applyBandClassificationInternal() {
 
+  if (bivariateMap && bivariateMap.isActive()) {
+    bivariateMap.applyClassification();
+    return;
+  }
+
   let [cmin, cmax] = mapColorRange();
 
   if (cmin === cmax) cmax = cmin + 1;
@@ -10437,6 +10782,12 @@ function _applyBandClassificationInternal() {
 
   }
 
+  if (mapCompare && mapCompare.isActive()) {
+
+    mapCompare.updateColorbar();
+
+  }
+
 }
 
 
@@ -10448,6 +10799,11 @@ function updateInteractiveColorbar() {
   const bar = document.getElementById("interactiveColorbar");
 
   if (!bar) return;
+
+  if (bivariateMap && bivariateMap.isActive()) {
+    bivariateMap.updateLegend();
+    return;
+  }
 
 
 
@@ -10465,7 +10821,14 @@ function updateInteractiveColorbar() {
 
   if (titleEl) {
 
-    titleEl.textContent = variableLabel(state.variable);
+    if (mapCompare && mapCompare.isActive()) {
+      const leftName = variableLabel(state.variable);
+      const rightVar = mapCompare.getCompareVariable();
+      const rightName = rightVar ? variableLabel(rightVar) : "";
+      titleEl.innerHTML = `<div class="split-title-line"><span class="compare-pill-badge left-badge">Left</span><span class="split-cb-name" title="${escapeHtml(leftName)}">${escapeHtml(leftName)}</span></div><div class="split-title-line"><span class="compare-pill-badge right-badge">Right</span><span class="split-cb-name" title="${escapeHtml(rightName)}">${escapeHtml(rightName)}</span></div>`;
+    } else {
+      titleEl.textContent = variableLabel(state.variable);
+    }
 
   }
 
@@ -10523,7 +10886,7 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
 
 
 
-  const mobile = isMobile();
+  const mobile = isMobile() && !(mapCompare && mapCompare.isActive()) && !(bivariateMap && bivariateMap.isActive());
 
   const [f0, f1, f2, f3] = state.bandFractions;
 
@@ -10651,13 +11014,31 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
 
       } else {
 
-        handle.style.bottom = `${f * 100}%`;
+        const isSplit = mapCompare && mapCompare.isActive();
 
-        if (!fast) {
+        if (isSplit) {
 
-          handle.style.left = "-6px";
+          handle.classList.remove("hidden");
 
-          handle.style.top = "";
+          handle.style.setProperty("bottom", `${f * 100}%`, "important");
+
+          handle.style.setProperty("top", "auto", "important");
+
+          handle.style.setProperty("display", "flex", "important");
+
+          handle.style.left = "";
+
+        } else {
+
+          handle.style.bottom = `${f * 100}%`;
+
+          handle.style.top = "auto";
+
+          if (!fast) {
+
+            handle.style.left = "-6px";
+
+          }
 
         }
 
@@ -10675,11 +11056,28 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
 
   });
 
+  if (mapCompare && mapCompare.isActive()) {
+    mapCompare.updateColorbar(cmin, cmax);
+  }
+
 }
 
 
 
 function initInteractiveColorbar() {
+
+  const splitLeftEq = document.getElementById("splitLeftEqualBtn");
+  const splitLeftQn = document.getElementById("splitLeftQuantBtn");
+  if (splitLeftEq) {
+    splitLeftEq.addEventListener("click", () => {
+      document.getElementById("colorbarEqualBtn")?.click();
+    });
+  }
+  if (splitLeftQn) {
+    splitLeftQn.addEventListener("click", () => {
+      document.getElementById("colorbarQuantileBtn")?.click();
+    });
+  }
 
   const equalBtn = document.getElementById("colorbarEqualBtn");
 
@@ -10801,7 +11199,15 @@ function initInteractiveColorbar() {
 
           resizeRafId = null;
 
-          bar.style.setProperty("--colorbar-width", `${newW}px`);
+          if (mapCompare && mapCompare.isActive()) {
+
+            bar.style.setProperty("--colorbar-split-width", `${newW}px`);
+
+          } else {
+
+            bar.style.setProperty("--colorbar-width", `${newW}px`);
+
+          }
 
           bar.style.setProperty("--colorbar-track-height", `${newH}px`);
 
@@ -10941,13 +11347,13 @@ function initInteractiveColorbar() {
 
 
 
-        let f0 = Math.max(0.04, Math.min(0.85, (q0 - cmin) / range));
+        let f0 = Math.max(0.04, Math.min(0.82, (q0 - cmin) / range));
 
-        let f1 = Math.max(f0 + 0.03, Math.min(0.89, (q1 - cmin) / range));
+        let f1 = Math.max(f0 + 0.05, Math.min(0.87, (q1 - cmin) / range));
 
-        let f2 = Math.max(f1 + 0.03, Math.min(0.93, (q2 - cmin) / range));
+        let f2 = Math.max(f1 + 0.05, Math.min(0.92, (q2 - cmin) / range));
 
-        let f3 = Math.max(f2 + 0.03, Math.min(0.97, (q3 - cmin) / range));
+        let f3 = Math.max(f2 + 0.05, Math.min(0.97, (q3 - cmin) / range));
 
 
 
@@ -10977,183 +11383,365 @@ function initInteractiveColorbar() {
 
 
 
-  for (let i = 0; i < 4; i++) {
+  const onPointerMove = (e) => {
 
-    const handle = document.getElementById(`colorbarHandle${i}`);
+    if (activeColorbarHandle === null || !activeTrackRect) return;
 
-    if (!handle) continue;
-
-
-
-    const onPointerDown = (e) => {
-
-      e.preventDefault();
-
-      e.stopPropagation();
-
-      try { handle.setPointerCapture(e.pointerId); } catch {}
-
-      activeColorbarHandle = i;
-
-      handle.classList.add("dragging");
-
-      bar?.classList.add("is-dragging");
+    try { e.preventDefault(); } catch {}
 
 
 
-      const track = document.getElementById("colorbarTrack");
+    let raw;
 
-      if (track) {
+    if (activeMobile) {
 
-        activeTrackRect = track.getBoundingClientRect();
+      const dist = e.clientX - activeTrackRect.left;
+
+      raw = dist / activeTrackRect.width;
+
+    } else {
+
+      const dist = activeTrackRect.bottom - e.clientY;
+
+      raw = dist / activeTrackRect.height;
+
+    }
+
+
+
+    const MIN_BOUND = 0.03;
+
+    const MAX_BOUND = 0.97;
+
+    const MIN_GAP = 0.05;
+
+
+
+    const i = activeColorbarHandle;
+
+    const minPossible = MIN_BOUND + i * MIN_GAP;
+
+    const maxPossible = MAX_BOUND - (3 - i) * MIN_GAP;
+
+    state.bandFractions[i] = Math.max(minPossible, Math.min(maxPossible, raw));
+
+
+
+    // Push / bump adjacent handles forward (upward)
+
+    for (let k = i + 1; k < 4; k++) {
+
+      if (state.bandFractions[k] < state.bandFractions[k - 1] + MIN_GAP) {
+
+        state.bandFractions[k] = state.bandFractions[k - 1] + MIN_GAP;
 
       }
 
-      activeMobile = isMobile();
+    }
+
+
+
+    // Push / bump adjacent handles backward (downward)
+
+    for (let k = i - 1; k >= 0; k--) {
+
+      if (state.bandFractions[k] > state.bandFractions[k + 1] - MIN_GAP) {
+
+        state.bandFractions[k] = state.bandFractions[k + 1] - MIN_GAP;
+
+      }
+
+    }
+
+
+
+    if (!dragRafId) {
+
+      dragRafId = requestAnimationFrame(() => {
+
+        dragRafId = null;
+
+        renderColorbarBandsAndHandles(activeCmin, activeCmax, true);
+
+        applyBandClassificationToMap(false);
+
+      });
+
+    }
+
+  };
+
+
+
+  const onPointerUp = (e) => {
+
+    if (activeColorbarHandle !== null) {
+
+      const idx = activeColorbarHandle;
+
+      const h = document.getElementById(`colorbarHandle${idx}`);
+
+      window.removeEventListener("pointermove", onPointerMove);
+
+      window.removeEventListener("pointerup", onPointerUp);
+
+      window.removeEventListener("pointercancel", onPointerUp);
+
+      if (h) {
+
+        h.removeEventListener("pointermove", onPointerMove);
+
+        try { h.releasePointerCapture(e.pointerId); } catch {}
+
+        h.classList.remove("dragging");
+
+        h.style.zIndex = "";
+
+      }
+
+      const tag = document.getElementById(`splitLeftTag${idx}`);
+
+      if (tag) tag.classList.remove("dragging");
+
+
+
+      if (dragRafId) {
+
+        cancelAnimationFrame(dragRafId);
+
+        dragRafId = null;
+
+      }
+
+
+
+      activeColorbarHandle = null;
+
+      activeTrackRect = null;
+
+      bar?.classList.remove("is-dragging");
+
+
 
       let [cmin, cmax] = mapColorRange();
 
       if (cmin === cmax) cmax = cmin + 1;
 
-      activeCmin = cmin;
-
-      activeCmax = cmax;
-
-    };
 
 
+      renderColorbarBandsAndHandles(cmin, cmax, false);
 
-    const onPointerMove = (e) => {
+      applyBandClassificationToMap(true);
 
-      if (activeColorbarHandle !== i) return;
+    }
 
-      if (!activeTrackRect) return;
+  };
 
 
 
-      let raw;
+  function startLeftDrag(idx, e) {
 
-      if (activeMobile) {
+    const targetHandle = document.getElementById(`colorbarHandle${idx}`);
 
-        const dist = e.clientX - activeTrackRect.left;
+    if (!targetHandle) return;
 
-        raw = dist / activeTrackRect.width;
+    try { targetHandle.setPointerCapture(e.pointerId); } catch {}
 
-      } else {
+
+
+    activeColorbarHandle = idx;
+
+    targetHandle.classList.add("dragging");
+
+    targetHandle.style.zIndex = "50";
+
+    bar?.classList.add("is-dragging");
+
+
+
+    const track = document.getElementById("colorbarTrack");
+
+    if (track) {
+
+      activeTrackRect = track.getBoundingClientRect();
+
+    }
+
+
+
+    const tag = document.getElementById(`splitLeftTag${idx}`);
+
+    if (tag) tag.classList.add("dragging");
+
+
+
+    activeMobile = isMobile() && !(mapCompare && mapCompare.isActive()) && !(bivariateMap && bivariateMap.isActive());
+
+    let [cmin, cmax] = mapColorRange();
+
+    if (cmin === cmax) cmax = cmin + 1;
+
+    activeCmin = cmin;
+
+    activeCmax = cmax;
+
+
+
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+
+    window.addEventListener("pointerup", onPointerUp);
+
+    window.addEventListener("pointercancel", onPointerUp);
+
+    targetHandle.addEventListener("pointermove", onPointerMove, { passive: false });
+
+  }
+
+
+
+  for (let i = 0; i < 4; i++) {
+
+    const handle = document.getElementById(`colorbarHandle${i}`);
+
+    if (handle) {
+
+      handle.addEventListener("pointerdown", (e) => {
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+        const track = document.getElementById("colorbarTrack");
+
+        if (track) activeTrackRect = track.getBoundingClientRect();
+
+        if (activeTrackRect) {
+
+          const isSplit = mapCompare && mapCompare.isActive();
+
+          let touchFraction;
+
+          if (isSplit || !isMobile()) {
+
+            const dist = activeTrackRect.bottom - e.clientY;
+
+            touchFraction = Math.max(0, Math.min(1, dist / activeTrackRect.height));
+
+          } else {
+
+            const dist = e.clientX - activeTrackRect.left;
+
+            touchFraction = Math.max(0, Math.min(1, dist / activeTrackRect.width));
+
+          }
+
+          const fractions = state.bandFractions || [0.2, 0.4, 0.6, 0.8];
+
+          let targetIdx = i;
+
+          let minDist = Math.abs(fractions[i] - touchFraction);
+
+          for (let j = 0; j < 4; j++) {
+
+            const d = Math.abs(fractions[j] - touchFraction);
+
+            if (d < minDist) {
+
+              minDist = d;
+
+              targetIdx = j;
+
+            }
+
+          }
+
+          startLeftDrag(targetIdx, e);
+
+        } else {
+
+          startLeftDrag(i, e);
+
+        }
+
+      });
+
+    }
+
+
+
+    const splitTag = document.getElementById(`splitLeftTag${i}`);
+
+    if (splitTag) {
+
+      splitTag.addEventListener("pointerdown", (e) => {
+
+        e.preventDefault();
+
+        e.stopPropagation();
+
+        startLeftDrag(i, e);
+
+      });
+
+    }
+
+  }
+
+
+
+  const leftTrackDom = document.getElementById("colorbarTrack");
+
+  if (leftTrackDom) {
+
+    leftTrackDom.addEventListener("pointerdown", (e) => {
+
+      e.preventDefault();
+
+      e.stopPropagation();
+
+      activeTrackRect = leftTrackDom.getBoundingClientRect();
+
+      const isSplit = mapCompare && mapCompare.isActive();
+
+      let touchFraction;
+
+      if (isSplit || !isMobile()) {
 
         const dist = activeTrackRect.bottom - e.clientY;
 
-        raw = dist / activeTrackRect.height;
+        touchFraction = Math.max(0, Math.min(1, dist / activeTrackRect.height));
+
+      } else {
+
+        const dist = e.clientX - activeTrackRect.left;
+
+        touchFraction = Math.max(0, Math.min(1, dist / activeTrackRect.width));
 
       }
 
+      const fractions = state.bandFractions || [0.2, 0.4, 0.6, 0.8];
 
+      let targetIdx = 0;
 
-      const MIN_BOUND = 0.02;
+      let minDist = Math.abs(fractions[0] - touchFraction);
 
-      const MAX_BOUND = 0.98;
+      for (let j = 1; j < 4; j++) {
 
-      const MIN_GAP = 0.02;
+        const d = Math.abs(fractions[j] - touchFraction);
 
+        if (d < minDist) {
 
+          minDist = d;
 
-      const minPossible = MIN_BOUND + i * MIN_GAP;
-
-      const maxPossible = MAX_BOUND - (3 - i) * MIN_GAP;
-
-      state.bandFractions[i] = Math.max(minPossible, Math.min(maxPossible, raw));
-
-
-
-      // Push / bump adjacent handles forward (upward)
-
-      for (let k = i + 1; k < 4; k++) {
-
-        if (state.bandFractions[k] < state.bandFractions[k - 1] + MIN_GAP) {
-
-          state.bandFractions[k] = state.bandFractions[k - 1] + MIN_GAP;
+          targetIdx = j;
 
         }
 
       }
 
+      startLeftDrag(targetIdx, e);
 
-
-      // Push / bump adjacent handles backward (downward)
-
-      for (let k = i - 1; k >= 0; k--) {
-
-        if (state.bandFractions[k] > state.bandFractions[k + 1] - MIN_GAP) {
-
-          state.bandFractions[k] = state.bandFractions[k + 1] - MIN_GAP;
-
-        }
-
-      }
-
-
-
-      if (!dragRafId) {
-
-        dragRafId = requestAnimationFrame(() => {
-
-          dragRafId = null;
-
-          renderColorbarBandsAndHandles(activeCmin, activeCmax, true);
-
-          applyBandClassificationToMap(false);
-
-        });
-
-      }
-
-    };
-
-
-
-    const onPointerUp = (e) => {
-
-      if (activeColorbarHandle === i) {
-
-        if (dragRafId) {
-
-          cancelAnimationFrame(dragRafId);
-
-          dragRafId = null;
-
-        }
-
-        try { handle.releasePointerCapture(e.pointerId); } catch {}
-
-        activeColorbarHandle = null;
-
-        activeTrackRect = null;
-
-        handle.classList.remove("dragging");
-
-        bar?.classList.remove("is-dragging");
-
-        let [cmin, cmax] = mapColorRange();
-
-        if (cmin === cmax) cmax = cmin + 1;
-
-        renderColorbarBandsAndHandles(cmin, cmax, false);
-
-        applyBandClassificationToMap(true);
-
-      }
-
-    };
-
-
-
-    handle.addEventListener("pointerdown", onPointerDown);
-
-    handle.addEventListener("pointermove", onPointerMove);
-
-    handle.addEventListener("pointerup", onPointerUp);
-
-    handle.addEventListener("pointercancel", onPointerUp);
+    });
 
   }
 

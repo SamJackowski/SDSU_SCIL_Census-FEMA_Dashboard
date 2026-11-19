@@ -2100,7 +2100,7 @@ function renderCardModal(data) {
             </div>
           </div>
 
-          <!-- Reinsurance & Catastrophe Capital Allocation Module -->
+          <!-- Reinsurance & Catastrophe Capital Stack (Donut Pie Chart Layout) -->
           <div class="calc-reins-section" id="calcReinsSection">
             <div class="calc-reins-header">
               <div class="calc-reins-title">
@@ -2113,41 +2113,77 @@ function renderCardModal(data) {
               <span class="calc-reins-badge" id="reinsBadge">Elevated Reinsurance Load</span>
             </div>
 
-            <!-- Visual 3-Layer Stacked Progress Bar -->
-            <div class="calc-reins-bar-wrap">
-              <div class="calc-reins-bar">
-                <div class="reins-segment reins-seg-ground" id="reinsSegGround" style="width: 48%;" title="Ground-Up Loss Cost"></div>
-                <div class="reins-segment reins-seg-reins" id="reinsSegReins" style="width: 34%;" title="Catastrophe Reinsurance Loading"></div>
-                <div class="reins-segment reins-seg-exp" id="reinsSegExp" style="width: 18%;" title="Carrier Expenses & Regulatory"></div>
+            <div class="loss-pie-layout">
+              <!-- Visual Donut / Pie Chart -->
+              <div class="loss-donut-wrap">
+                <div class="loss-donut-chart" id="reinsDonutChart" style="background: conic-gradient(#2563eb 0% 48%, #d97706 48% 82%, #64748b 82% 100%);">
+                  <div class="loss-donut-center">
+                    <span class="loss-donut-center-lbl">HO PREMIUM</span>
+                    <strong class="loss-donut-center-val" id="reinsDonutCenterVal">$0</strong>
+                    <span class="loss-donut-center-sub" id="reinsDonutCenterSub">100% Stack</span>
+                  </div>
+                </div>
               </div>
-              <div class="calc-reins-legend">
-                <span class="reins-leg-item"><span class="reins-dot dot-ground"></span> Ground-Up Claims (<span id="reinsGroundPct">48%</span>)</span>
-                <span class="reins-leg-item"><span class="reins-dot dot-reins"></span> Catastrophe Reinsurance (<span id="reinsReinsPct">34%</span>)</span>
-                <span class="reins-leg-item"><span class="reins-dot dot-exp"></span> Carrier Operations &amp; Fees (<span id="reinsExpPct">18%</span>)</span>
-              </div>
-            </div>
 
-            <!-- Dollar Metrics Grid -->
-            <div class="calc-reins-grid">
-              <div class="reins-card-item">
-                <span class="reins-lbl">Ground-Up Loss Reserve</span>
-                <div class="reins-val" id="reinsGroundVal">$0 / yr</div>
-                <span class="reins-sub">Everyday localized claims (plumbing, minor fire/wind)</span>
-              </div>
-              <div class="reins-card-item highlight-reins">
-                <span class="reins-lbl">Global Reinsurance Surcharge</span>
-                <div class="reins-val" id="reinsReinsVal">$0 / yr</div>
-                <span class="reins-sub">Transferred to reinsurers for 1-in-100+ yr catastrophes</span>
-              </div>
-              <div class="reins-card-item">
-                <span class="reins-lbl">Carrier Operations &amp; Fees</span>
-                <div class="reins-val" id="reinsExpVal">$0 / yr</div>
-                <span class="reins-sub">Loss adjustment, administration, and state pool fees</span>
+              <!-- Loss Breakdown Chips -->
+              <div class="loss-pie-breakdown">
+                <div class="loss-pie-grid">
+                  <!-- Chip 1: Ground-Up Loss Reserve -->
+                  <div class="loss-pie-chip" title="Everyday localized claims (plumbing, minor fire/wind)">
+                    <div class="loss-chip-top">
+                      <div class="loss-chip-title">
+                        <span class="loss-comp-dot" style="background: #2563eb;"></span>
+                        <span class="loss-comp-name">Ground-Up Claims</span>
+                      </div>
+                      <span class="loss-chip-pct" id="reinsGroundPct">48%</span>
+                    </div>
+                    <div class="loss-chip-bottom">
+                      <div class="loss-chip-dollars">
+                        <strong id="reinsGroundVal">$0</strong><span class="loss-chip-sub">/yr</span>
+                      </div>
+                      <span class="loss-chip-rate rate-ground">Primary Loss</span>
+                    </div>
+                  </div>
+
+                  <!-- Chip 2: Global Reinsurance Surcharge -->
+                  <div class="loss-pie-chip chip-reins" title="Transferred to reinsurers for 1-in-100+ yr catastrophes">
+                    <div class="loss-chip-top">
+                      <div class="loss-chip-title">
+                        <span class="loss-comp-dot" style="background: #d97706;"></span>
+                        <span class="loss-comp-name">Cat Reinsurance</span>
+                      </div>
+                      <span class="loss-chip-pct pct-reins" id="reinsReinsPct">34%</span>
+                    </div>
+                    <div class="loss-chip-bottom">
+                      <div class="loss-chip-dollars">
+                        <strong id="reinsReinsVal" class="val-reins">$0</strong><span class="loss-chip-sub">/yr</span>
+                      </div>
+                      <span class="loss-chip-rate rate-reins">Cat Capital</span>
+                    </div>
+                  </div>
+
+                  <!-- Chip 3: Carrier Operations & Fees -->
+                  <div class="loss-pie-chip" title="Loss adjustment, administration, and state pool fees">
+                    <div class="loss-chip-top">
+                      <div class="loss-chip-title">
+                        <span class="loss-comp-dot" style="background: #64748b;"></span>
+                        <span class="loss-comp-name">Carrier Operations</span>
+                      </div>
+                      <span class="loss-chip-pct" id="reinsExpPct">18%</span>
+                    </div>
+                    <div class="loss-chip-bottom">
+                      <div class="loss-chip-dollars">
+                        <strong id="reinsExpVal">$0</strong><span class="loss-chip-sub">/yr</span>
+                      </div>
+                      <span class="loss-chip-rate rate-ops">Ops &amp; Fees</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- Context Narrative Note -->
-            <div class="calc-reins-note" id="reinsNote">
+            <div class="calc-reins-note" id="reinsNote" style="margin-top: 6px;">
               Calculating reinsurance allocation...
             </div>
           </div>
@@ -2595,11 +2631,11 @@ function renderCardModal(data) {
         hoClaimImpactTagEl.className = res.hoClaimSurchargeLabel.includes("+") ? "calc-impact-alert" : "calc-impact-clean";
       }
 
-      // Reinsurance DOM
+      // Reinsurance DOM (Donut Pie Chart Layout)
       const reinsBadgeEl = document.getElementById("reinsBadge");
-      const reinsSegGroundEl = document.getElementById("reinsSegGround");
-      const reinsSegReinsEl = document.getElementById("reinsSegReins");
-      const reinsSegExpEl = document.getElementById("reinsSegExp");
+      const reinsDonutChartEl = document.getElementById("reinsDonutChart");
+      const reinsDonutCenterValEl = document.getElementById("reinsDonutCenterVal");
+      const reinsDonutCenterSubEl = document.getElementById("reinsDonutCenterSub");
       const reinsGroundPctEl = document.getElementById("reinsGroundPct");
       const reinsReinsPctEl = document.getElementById("reinsReinsPct");
       const reinsExpPctEl = document.getElementById("reinsExpPct");
@@ -2612,17 +2648,29 @@ function renderCardModal(data) {
         reinsBadgeEl.textContent = res.reins.reinsBadge;
         reinsBadgeEl.className = `calc-reins-badge ${res.reins.reinsBadgeClass}`;
       }
-      if (reinsSegGroundEl) reinsSegGroundEl.style.width = `${res.reins.groundUpPct}%`;
-      if (reinsSegReinsEl) reinsSegReinsEl.style.width = `${res.reins.reinsPct}%`;
-      if (reinsSegExpEl) reinsSegExpEl.style.width = `${res.reins.expensePct}%`;
 
-      if (reinsGroundPctEl) reinsGroundPctEl.textContent = `${res.reins.groundUpPct}%`;
-      if (reinsReinsPctEl) reinsReinsPctEl.textContent = `${res.reins.reinsPct}%`;
-      if (reinsExpPctEl) reinsExpPctEl.textContent = `${res.reins.expensePct}%`;
+      const gPct = res.reins.groundUpPct;
+      const rPct = res.reins.reinsPct;
+      const ePct = res.reins.expensePct;
+      const rEnd = Math.min(100, gPct + rPct);
 
-      if (reinsGroundValEl) reinsGroundValEl.textContent = `$${res.reins.groundUpAmount.toLocaleString()} / yr`;
-      if (reinsReinsValEl) reinsReinsValEl.textContent = `$${res.reins.reinsAmount.toLocaleString()} / yr`;
-      if (reinsExpValEl) reinsExpValEl.textContent = `$${res.reins.expenseAmount.toLocaleString()} / yr`;
+      if (reinsDonutChartEl) {
+        reinsDonutChartEl.style.background = `conic-gradient(#2563eb 0% ${gPct}%, #d97706 ${gPct}% ${rEnd}%, #64748b ${rEnd}% 100%)`;
+      }
+      if (reinsDonutCenterValEl) {
+        reinsDonutCenterValEl.textContent = `$${res.userHoPremium.toLocaleString()}`;
+      }
+      if (reinsDonutCenterSubEl) {
+        reinsDonutCenterSubEl.textContent = "100% Stack";
+      }
+
+      if (reinsGroundPctEl) reinsGroundPctEl.textContent = `${gPct}%`;
+      if (reinsReinsPctEl) reinsReinsPctEl.textContent = `${rPct}%`;
+      if (reinsExpPctEl) reinsExpPctEl.textContent = `${ePct}%`;
+
+      if (reinsGroundValEl) reinsGroundValEl.textContent = `$${res.reins.groundUpAmount.toLocaleString()}`;
+      if (reinsReinsValEl) reinsReinsValEl.textContent = `$${res.reins.reinsAmount.toLocaleString()}`;
+      if (reinsExpValEl) reinsExpValEl.textContent = `$${res.reins.expenseAmount.toLocaleString()}`;
 
       if (reinsNoteEl) {
         reinsNoteEl.innerHTML = `<strong>Actuarial Reinsurance Allocation:</strong> In this location (${res.reins.reinsTierName}), <strong>${res.reins.reinsPct}% ($${res.reins.reinsAmount.toLocaleString()}/yr)</strong> of your estimated hazard premium is transferred to secondary global reinsurers to absorb 1-in-100+ year tail risk (hurricanes, severe convective storms, and wildfires), calibrated against State DOI public rate filings.`;
