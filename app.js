@@ -14,6 +14,7 @@ import { createRiskCard } from "./risk-card.js";
 
 import { createMapCompare } from "./compare-map.js";
 import { createBivariateMap } from "./bivariate-map.js";
+import { initMapExporter } from "./map-exporter.js";
 
 
 
@@ -1106,6 +1107,7 @@ let mapDraw = null;
 
 let mapCompare = null;
 let bivariateMap = null;
+let mapExporter = null;
 
 let tractLegend = null;
 
@@ -8895,6 +8897,8 @@ function initTractMap() {
 
     clickTolerance: 10,
 
+    preserveDrawingBuffer: true,
+
   });
 
 
@@ -8926,6 +8930,18 @@ function initTractMap() {
   tractMap.addControl(mapDraw, "top-left");
 
   attachColorbarToMap();
+
+  if (!mapExporter) {
+    mapExporter = initMapExporter({
+      getTractMap: () => tractMap,
+      getMapCompare: () => mapCompare,
+      getBivariateMap: () => bivariateMap,
+      getState: () => state,
+      isDarkMode,
+      variableLabel,
+      formatValue,
+    });
+  }
 
   
 
@@ -9528,6 +9544,7 @@ function initTractMap() {
         VARIABLE_GROUP_ORDER,
         isZeroIgnoredVariable,
         mapColorRange,
+        applySingleClassification: () => applyBandClassificationToMap(true),
         updateInteractiveColorbar: () => updateInteractiveColorbar(),
         ensureTractVariableLoaded: (v) => ensureTractVariableLoaded(v),
       });
@@ -10991,6 +11008,21 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
 
 
   // Update handles
+  const isSplit = mapCompare && mapCompare.isActive();
+
+  if (!isSplit) {
+    for (let i = 0; i < 4; i++) {
+      const rh = document.getElementById(`compareHandle${i}`);
+      if (rh) {
+        rh.classList.add("hidden");
+        rh.style.removeProperty("display");
+        rh.style.removeProperty("bottom");
+        rh.style.removeProperty("top");
+        rh.style.removeProperty("left");
+        rh.style.display = "none";
+      }
+    }
+  }
 
   state.bandFractions.forEach((f, idx) => {
 
@@ -11001,6 +11033,12 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
     if (handle) {
 
       if (mobile) {
+
+        handle.classList.remove("hidden");
+
+        handle.style.removeProperty("display");
+
+        handle.style.removeProperty("bottom");
 
         handle.style.left = `${f * 100}%`;
 
@@ -11013,8 +11051,6 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
         }
 
       } else {
-
-        const isSplit = mapCompare && mapCompare.isActive();
 
         if (isSplit) {
 
@@ -11029,6 +11065,10 @@ function renderColorbarBandsAndHandles(cmin, cmax, fast = false) {
           handle.style.left = "";
 
         } else {
+
+          handle.classList.remove("hidden");
+
+          handle.style.removeProperty("display");
 
           handle.style.bottom = `${f * 100}%`;
 

@@ -64,3 +64,7 @@
 - Added agricultural values to map dropdown
 - Fixed bug with color bar sliders lagging
 - More mobile bug fixes 
+
+## Version 1.1.4.4 (11/19/2026)
+- Added new map split and bivariate choropleth modes for variable comparison 
+- Improved draw mode and header text

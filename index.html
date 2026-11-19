@@ -450,6 +450,14 @@
 
           </button>
 
+          <button type="button" id="exportMapBtn" class="draw-tool-btn export-tool-btn" title="Export High-Resolution Map & Report">
+
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+
+            <span>Export</span>
+
+          </button>
+
         </div>
 
 
@@ -1166,6 +1174,104 @@
   </div>
 
 
+
+  <!-- High-Resolution Map & Report Export Modal -->
+  <div id="exportModalBackdrop" class="risk-card-backdrop export-modal-backdrop hidden" hidden role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+    <div class="risk-card-modal export-modal">
+      <div class="export-modal-header">
+        <div class="export-modal-title-group">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <h3 id="exportModalTitle" class="export-modal-title">Export Map &amp; Report</h3>
+        </div>
+        <button type="button" id="exportModalCloseBtn" class="export-close-btn" aria-label="Close export dialog">✕</button>
+      </div>
+
+      <div class="export-modal-body">
+        <!-- Live Preview Panel -->
+        <div class="export-preview-container">
+          <div class="export-preview-wrapper" id="exportPreviewWrapper">
+            <canvas id="exportPreviewCanvas" class="export-preview-canvas"></canvas>
+            <div id="exportLoadingSpinner" class="export-loading-spinner hidden">
+              <div class="export-spinner"></div>
+              <span>Rendering preview...</span>
+            </div>
+          </div>
+          <div class="export-preview-meta" id="exportPreviewMeta">
+            <span id="exportDimensionBadge" class="export-badge">1920 × 1080 px</span>
+            <span id="exportFormatBadge" class="export-badge">PNG Image</span>
+          </div>
+        </div>
+
+        <!-- Export Configuration Options -->
+        <div class="export-options-sidebar">
+          <div class="export-option-group">
+            <label class="export-label">Export Layout</label>
+            <div class="export-segmented-control" id="exportLayoutControl">
+              <button type="button" class="export-segment-btn active" data-layout="figure">
+                <span class="seg-title">Publication Figure</span>
+                <span class="seg-desc">Includes header title, metadata, active legend &amp; citation</span>
+              </button>
+              <button type="button" class="export-segment-btn" data-layout="clean">
+                <span class="seg-title">Clean Map Only</span>
+                <span class="seg-desc">Full bleed map canvas without UI frames</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="export-option-group" id="exportResolutionGroup">
+            <label class="export-label">Resolution Quality</label>
+            <div class="export-radio-row">
+              <label class="export-radio-pill">
+                <input type="radio" name="exportResolution" value="2" checked>
+                <span>High-Res 2× (300 DPI)</span>
+              </label>
+              <label class="export-radio-pill">
+                <input type="radio" name="exportResolution" value="1">
+                <span>Standard 1×</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="export-option-group" id="exportThemeGroup">
+            <label class="export-label">Figure Theme</label>
+            <div class="export-radio-row">
+              <label class="export-radio-pill">
+                <input type="radio" name="exportTheme" value="dark" checked>
+                <span>Dark Theme</span>
+              </label>
+              <label class="export-radio-pill">
+                <input type="radio" name="exportTheme" value="light">
+                <span>Light Theme</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="export-modal-actions">
+            <button type="button" id="exportDownloadBtn" class="export-action-btn export-download-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download PNG Image</span>
+            </button>
+            <button type="button" id="exportCopyBtn" class="export-action-btn export-copy-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span id="exportCopyBtnText">Copy to Clipboard</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 

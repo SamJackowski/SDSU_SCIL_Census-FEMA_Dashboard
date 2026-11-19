@@ -43,6 +43,7 @@ export function createMapCompare(ctx) {
     VARIABLE_GROUP_ORDER,
     isZeroIgnoredVariable,
     mapColorRange,
+    applySingleClassification,
     updateInteractiveColorbar,
     ensureTractVariableLoaded,
   } = ctx;
@@ -273,6 +274,7 @@ export function createMapCompare(ctx) {
         pitch: tractMap.getPitch(),
         clickTolerance: 10,
         attributionControl: false,
+        preserveDrawingBuffer: true,
       });
 
       const onMapReady = () => {
@@ -479,6 +481,15 @@ export function createMapCompare(ctx) {
     fractions.forEach((f, idx) => {
       const handle = document.getElementById(`compareHandle${idx}`);
       if (handle) {
+        if (!isCompareActive) {
+          handle.classList.add("hidden");
+          handle.style.removeProperty("display");
+          handle.style.removeProperty("bottom");
+          handle.style.removeProperty("top");
+          handle.style.removeProperty("left");
+          handle.style.display = "none";
+          return;
+        }
         handle.classList.remove("hidden");
         handle.style.setProperty("bottom", `${f * 100}%`, "important");
         handle.style.setProperty("top", "auto", "important");
@@ -961,6 +972,7 @@ export function createMapCompare(ctx) {
     const handle = document.getElementById(`compareHandle${i}`);
     if (handle) {
       handle.addEventListener("pointerdown", (e) => {
+        if (!isCompareActive) return;
         e.preventDefault();
         e.stopPropagation();
         const track = document.getElementById("colorbarTrackRight") || document.getElementById("colorbarTrack");
@@ -1122,7 +1134,22 @@ export function createMapCompare(ctx) {
       if (splitRightCol) splitRightCol.classList.add("hidden");
       if (rightTrackEl) rightTrackEl.classList.add("hidden");
       for (let i = 0; i < 4; i++) {
-        document.getElementById(`compareHandle${i}`)?.classList.add("hidden");
+        const rh = document.getElementById(`compareHandle${i}`);
+        if (rh) {
+          rh.classList.add("hidden");
+          rh.style.removeProperty("display");
+          rh.style.removeProperty("bottom");
+          rh.style.removeProperty("top");
+          rh.style.removeProperty("left");
+          rh.style.display = "none";
+        }
+        const lh = document.getElementById(`colorbarHandle${i}`);
+        if (lh) {
+          lh.style.removeProperty("display");
+          lh.style.removeProperty("bottom");
+          lh.style.removeProperty("top");
+          lh.style.removeProperty("left");
+        }
       }
       const titleEl = document.getElementById("colorbarTitle");
       if (titleEl) {
@@ -1131,16 +1158,25 @@ export function createMapCompare(ctx) {
     }
 
     compareMapEl.classList.add("hidden");
+    compareMapEl.style.clipPath = "";
     swiperEl.classList.add("hidden");
     if (!keepControlBar && !(bivariateMapRef && bivariateMapRef.isActive())) {
       controlBarEl.classList.add("hidden");
     }
     compareHoverPopup?.remove();
 
+    // Re-apply single classification to tractMap immediately upon exit
+    if (typeof applySingleClassification === "function") {
+      applySingleClassification();
+    }
+
     requestAnimationFrame(() => {
       getTractMap()?.resize();
       if (typeof updateInteractiveColorbar === "function") {
         updateInteractiveColorbar();
+      }
+      if (typeof applySingleClassification === "function") {
+        applySingleClassification();
       }
     });
   }
@@ -1183,6 +1219,8 @@ export function createMapCompare(ctx) {
   // Public API
   return {
     isActive: () => isCompareActive,
+    getCompareMap: () => compareMap,
+    getSplitFraction: () => splitFraction,
     getCompareVariable: () => compareVariable,
     toggle: toggleCompare,
     enable: enableCompare,
